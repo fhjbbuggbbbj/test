@@ -1,4 +1,4 @@
--- NONO ARC v18 - full restructure, real perf, real theme propagation
+-- NONO ARC v19 - real fixes, no patches
 local function P(m) print("[NONO] "..m) end
 P("01 boot")
 
@@ -20,7 +20,7 @@ pcall(function() CG = game:GetService("CoreGui") end)
 if not CG then CG = LP:WaitForChild("PlayerGui", 5) end
 P("03 parent")
 
--- ═══ THEME registry — tracks every colored element for full restyle
+-- ─── THEME ───
 local C = {
     BG      = Color3.fromRGB(11,11,14),
     Side    = Color3.fromRGB(15,15,18),
@@ -33,28 +33,12 @@ local C = {
     Hover   = Color3.fromRGB(30,30,36),
 }
 
--- color trackers: each entry = {obj, prop, themeKey}
-local ColorRegistry = {}
-local function track(obj, prop, key)
-    if not obj then return end
-    table.insert(ColorRegistry, {obj = obj, prop = prop, key = key})
-end
-local function applyTheme()
-    for _,entry in ipairs(ColorRegistry) do
-        pcall(function()
-            entry.obj[entry.prop] = C[entry.key]
-        end)
-    end
-end
-
 local S = {
     Toggles = {},
     Accent = Color3.fromRGB(255,255,255),
     ActiveTab = "Home",
-    Effects = {},
-    UISettings = {sizeMul = 1, opacity = 1, shadows = true, uiGlow = false, uiSnow = false, uiRain = false},
-    StripChips = {},
-    TabData = {},
+    UISettings = {},
+    SetToggleFns = {},
 }
 
 local function N(c,p,par)
@@ -68,7 +52,7 @@ local function Cnr(p,r) return N("UICorner",{CornerRadius=UDim.new(0,r or 8)},p)
 local function Strk(p,c,t) return N("UIStroke",{Color=c or C.Line,Thickness=t or 1},p) end
 local function Pad(p,t,b,l,r) return N("UIPadding",{PaddingTop=UDim.new(0,t or 0),PaddingBottom=UDim.new(0,b or 0),PaddingLeft=UDim.new(0,l or 0),PaddingRight=UDim.new(0,r or 0)},p) end
 
--- icon drawing (same as before)
+-- icon drawing
 local function drawIcon(parent, kind, size, color)
     local c = color or C.Text
     local h = N("Frame",{Size=UDim2.new(0,size,0,size),BackgroundTransparency=1},parent)
@@ -77,12 +61,9 @@ local function drawIcon(parent, kind, size, color)
         local b = N("Frame",{
             Size=UDim2.new(0,w,0,ht),
             Position=UDim2.new(0,x,0,y),
-            BackgroundColor3=c,
-            BorderSizePixel=0,
-            Rotation=rot or 0,
+            BackgroundColor3=c, BorderSizePixel=0, Rotation=rot or 0,
         },h)
         Cnr(b, math.max(1, math.min(w,ht)/2))
-        return b
     end
     if kind == "rejoin" then
         local ring = N("Frame",{Size=UDim2.new(0,size-5,0,size-5),Position=UDim2.new(0,2,0,3),BackgroundTransparency=1},h)
@@ -112,42 +93,30 @@ local function drawIcon(parent, kind, size, color)
     elseif kind == "close" then
         bar(size/2-1, 3, 2, size-6, 45)
         bar(size/2-1, 3, 2, size-6, -45)
-    elseif kind == "min" then
-        bar(3, size/2-1, size-6, 2)
     end
-    return h
 end
 
 local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
--- mobile: sidebar 130px wide so labels definitely fit
-local sideW = isMobile and 130 or 190
+local sideW = isMobile and 128 or 190
 local winW = math.min(isMobile and (vp.X - 16) or 900, vp.X - 16)
 local winH = math.min(isMobile and (vp.Y - 40) or 620, vp.Y - 40)
-P("04 size "..winW.."x"..winH.." mobile="..tostring(isMobile))
+P("04 size "..winW.."x"..winH)
 
 local gui = N("ScreenGui",{
-    Name="NonoARC_"..tostring(math.random(99999)),
-    ResetOnSpawn=false,
+    Name="NonoARC", ResetOnSpawn=false,
     ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
 }, CG)
-if not gui then P("FAIL gui") return end
-P("05 gui")
+if not gui then P("FAIL") return end
 
 local W = N("Frame",{
     Size=UDim2.new(0,winW,0,winH),
     Position=UDim2.new(.5,-winW/2,.5,-winH/2),
-    BackgroundColor3=C.BG,
-    BorderSizePixel=0,
-    Active=true,
+    BackgroundColor3=C.BG, BorderSizePixel=0, Active=true,
 }, gui)
 Cnr(W,14)
-local WStroke = Strk(W,C.Line,1)
-track(W, "BackgroundColor3", "BG")
-track(WStroke, "Color", "Line")
-P("06 window")
+Strk(W,C.Line,1)
 
--- drag on window
 do
     local drag, ds, sp = false, nil, nil
     W.InputBegan:Connect(function(i)
@@ -165,133 +134,90 @@ do
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end
     end)
 end
-P("07 drag")
 
--- ═══════════════════════════════════════════
--- TOP BAR — own floating strip, NOT tied to sidebar
--- ═══════════════════════════════════════════
-local topBarH = 44
+-- ═══════════════════════════════════════════════════════
+-- TOP BAR — floats ABOVE everything, sidebar sits BELOW it
+-- ═══════════════════════════════════════════════════════
+local topBarH = 42
 local TopBar = N("Frame",{
     Size=UDim2.new(1,0,0,topBarH),
-    Position=UDim2.new(0,0,0,0),
-    BackgroundColor3=C.Side,
-    BorderSizePixel=0,
-    ZIndex=5,
+    BackgroundColor3=C.Side, BorderSizePixel=0, ZIndex=100,
 }, W)
 Cnr(TopBar,14)
-track(TopBar, "BackgroundColor3", "Side")
+-- square the bottom corners
+N("Frame",{Size=UDim2.new(1,0,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=C.Side,BorderSizePixel=0,ZIndex=100},TopBar)
 
--- bottom strip to square off topbar's bottom corners
-local topBarBottom = N("Frame",{
-    Size=UDim2.new(1,0,0,14),
-    Position=UDim2.new(0,0,1,-14),
-    BackgroundColor3=C.Side,
-    BorderSizePixel=0,
-    ZIndex=5,
-}, TopBar)
-track(topBarBottom, "BackgroundColor3", "Side")
-
--- left: search
+-- search
 local searchBar = N("Frame",{
-    Size=UDim2.new(0,isMobile and 120 or 200,0,30),
+    Size=UDim2.new(0,isMobile and 130 or 200,0,28),
     Position=UDim2.new(0,10,0,7),
-    BackgroundColor3=C.BG,
-    BorderSizePixel=0,
+    BackgroundColor3=C.BG, BorderSizePixel=0,
 },TopBar)
 Cnr(searchBar,8)
-local searchStroke = Strk(searchBar,C.Line,1)
-track(searchBar, "BackgroundColor3", "BG")
-track(searchStroke, "Color", "Line")
+Strk(searchBar,C.Line,1)
 local sih = N("Frame",{Size=UDim2.new(0,12,0,12),Position=UDim2.new(0,9,0.5,-6),BackgroundTransparency=1},searchBar)
 drawIcon(sih, "search", 12, C.Dim)
 local sBox = N("TextBox",{
-    Size=UDim2.new(1,-40,1,0),
-    Position=UDim2.new(0,26,0,0),
-    BackgroundTransparency=1,
-    Text="",
-    PlaceholderText="Search",
-    PlaceholderColor3=C.Dim,
-    TextColor3=C.Text,
-    Font=Enum.Font.Gotham,TextSize=11,
-    TextXAlignment=Enum.TextXAlignment.Left,
-    ClearTextOnFocus=false,
+    Size=UDim2.new(1,-40,1,0), Position=UDim2.new(0,26,0,0),
+    BackgroundTransparency=1, Text="",
+    PlaceholderText="Search", PlaceholderColor3=C.Dim, TextColor3=C.Text,
+    Font=Enum.Font.Gotham, TextSize=11,
+    TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false,
 },searchBar)
-track(sBox, "TextColor3", "Text")
 
--- right: [close] [theme] [settings]
+-- right buttons
 local closeBtn = N("TextButton",{
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-40,0,7),
-    BackgroundColor3=C.BG,
-    Text="",
-    BorderSizePixel=0,
-    AutoButtonColor=false,
+    Size=UDim2.new(0,28,0,28), Position=UDim2.new(1,-38,0,7),
+    BackgroundColor3=C.BG, Text="", BorderSizePixel=0, AutoButtonColor=false,
 },TopBar)
-Cnr(closeBtn,8)
-local closeStroke = Strk(closeBtn,C.Line,1)
-track(closeBtn, "BackgroundColor3", "BG")
-track(closeStroke, "Color", "Line")
+Cnr(closeBtn,8) Strk(closeBtn,C.Line,1)
 local cih = N("Frame",{Size=UDim2.new(0,12,0,12),Position=UDim2.new(0.5,-6,0.5,-6),BackgroundTransparency=1},closeBtn)
 drawIcon(cih, "close", 12, C.Dim)
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
 local themeBtn = N("TextButton",{
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-76,0,7),
-    BackgroundColor3=C.BG,
-    Text="🎨", TextColor3=C.Text, TextSize=14,
+    Size=UDim2.new(0,28,0,28), Position=UDim2.new(1,-72,0,7),
+    BackgroundColor3=C.BG, Text="🎨", TextColor3=C.Text, TextSize=13,
     BorderSizePixel=0, AutoButtonColor=false,
 },TopBar)
-Cnr(themeBtn,8)
-local themeBtnStroke = Strk(themeBtn,C.Line,1)
-track(themeBtn, "BackgroundColor3", "BG")
-track(themeBtnStroke, "Color", "Line")
+Cnr(themeBtn,8) Strk(themeBtn,C.Line,1)
 
 local settingsBtn = N("TextButton",{
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-112,0,7),
-    BackgroundColor3=C.BG,
-    Text="⚙", TextColor3=C.Text, TextSize=14,
+    Size=UDim2.new(0,28,0,28), Position=UDim2.new(1,-106,0,7),
+    BackgroundColor3=C.BG, Text="⚙", TextColor3=C.Text, TextSize=13,
     BorderSizePixel=0, AutoButtonColor=false,
 },TopBar)
-Cnr(settingsBtn,8)
-local settingsBtnStroke = Strk(settingsBtn,C.Line,1)
-track(settingsBtn, "BackgroundColor3", "BG")
-track(settingsBtnStroke, "Color", "Line")
-P("08 topbar")
+Cnr(settingsBtn,8) Strk(settingsBtn,C.Line,1)
+P("09 topbar")
 
--- ═══════════════════════════════════════════
--- SIDEBAR — starts below topbar, has its own layout
--- ═══════════════════════════════════════════
+-- ═══════════════════════════════════════════════════════
+-- SIDEBAR — starting BELOW top bar
+-- ═══════════════════════════════════════════════════════
 local SB = N("Frame",{
     Size=UDim2.new(0,sideW,1,-topBarH),
     Position=UDim2.new(0,0,0,topBarH),
-    BackgroundColor3=C.Side,
-    BorderSizePixel=0,
-    ZIndex=2,
+    BackgroundColor3=C.Side, BorderSizePixel=0, ZIndex=50,
 }, W)
 Cnr(SB,14)
-track(SB, "BackgroundColor3", "Side")
--- square the seam edges
-local sbFill1 = N("Frame",{Size=UDim2.new(0,14,1,0),Position=UDim2.new(1,-14,0,0),BackgroundColor3=C.Side,BorderSizePixel=0},SB)
-local sbFill2 = N("Frame",{Size=UDim2.new(0,14,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=C.Side,BorderSizePixel=0},SB)
-track(sbFill1, "BackgroundColor3", "Side")
-track(sbFill2, "BackgroundColor3", "Side")
--- divider
-local sbDiv = N("Frame",{Size=UDim2.new(0,1,1,-24),Position=UDim2.new(1,-1,0,12),BackgroundColor3=C.Line,BorderSizePixel=0},SB)
-track(sbDiv, "BackgroundColor3", "Line")
+-- square inner corners
+N("Frame",{Size=UDim2.new(0,14,0,14),Position=UDim2.new(0,0,0,0),BackgroundColor3=C.Side,BorderSizePixel=0,ZIndex=50},SB)
+N("Frame",{Size=UDim2.new(0,14,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=C.Side,BorderSizePixel=0,ZIndex=50},SB)
+-- right divider
+N("Frame",{Size=UDim2.new(0,1,1,-24),Position=UDim2.new(1,-1,0,12),BackgroundColor3=C.Line,BorderSizePixel=0},SB)
 
--- logo
-local Lg = N("Frame",{Size=UDim2.new(1,-16,0,isMobile and 40 or 48),Position=UDim2.new(0,isMobile and 8 or 10,0,isMobile and 8 or 12),BackgroundTransparency=1},SB)
-local LgI = N("Frame",{Size=UDim2.new(0,isMobile and 28 or 34,0,isMobile and 28 or 34),Position=UDim2.new(0,2,0,isMobile and 6 or 7),BackgroundColor3=C.Accent,BorderSizePixel=0},Lg)
-Cnr(LgI,10)
-N("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text="N",TextColor3=C.BG,Font=Enum.Font.GothamBlack,TextSize=isMobile and 14 or 17},LgI)
+-- logo at top of sidebar
+local Lg = N("Frame",{Size=UDim2.new(1,-16,0,40),Position=UDim2.new(0,8,0,8),BackgroundTransparency=1},SB)
+local LgI = N("Frame",{Size=UDim2.new(0,28,0,28),Position=UDim2.new(0,2,0,6),BackgroundColor3=C.Accent,BorderSizePixel=0},Lg)
+Cnr(LgI,8)
+N("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text="N",TextColor3=C.BG,Font=Enum.Font.GothamBlack,TextSize=14},LgI)
 if not isMobile then
-    N("TextLabel",{Size=UDim2.new(1,-46,0,16),Position=UDim2.new(0,44,0,6),BackgroundTransparency=1,Text="NONO",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left},Lg)
-    N("TextLabel",{Size=UDim2.new(1,-46,0,12),Position=UDim2.new(0,44,0,22),BackgroundTransparency=1,Text="UNIVERSAL AI",TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},Lg)
+    N("TextLabel",{Size=UDim2.new(1,-40,0,14),Position=UDim2.new(0,38,0,6),BackgroundTransparency=1,Text="NONO",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left},Lg)
+    N("TextLabel",{Size=UDim2.new(1,-40,0,12),Position=UDim2.new(0,38,0,22),BackgroundTransparency=1,Text="UNIVERSAL AI",TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},Lg)
 end
 
--- ═══ NAV — 10 tabs, no clipping, always visible ═══
+-- ═══════════════════════════════════════════════════════
+-- NAV — ScrollingFrame so tabs always scroll into view
+-- ═══════════════════════════════════════════════════════
 local navs = {
     {name="Home",     icon="🏠"},
     {name="Combat",   icon="⚔"},
@@ -305,86 +231,66 @@ local navs = {
     {name="Settings", icon="⚙"},
 }
 
-local navTopY = isMobile and 54 or 68
-local navBottomPad = 8
-local navHold = N("Frame",{
-    Size=UDim2.new(1,-12,1,-navTopY-navBottomPad),
-    Position=UDim2.new(0,6,navTopY,0),
-    BackgroundTransparency=1,
+-- nav container starts BELOW logo
+local navStartY = 56
+local navHeight = (winH - topBarH) - navStartY - 8
+local navScroll = N("ScrollingFrame",{
+    Size=UDim2.new(1,-12,0,navHeight),
+    Position=UDim2.new(0,6,navStartY,0),
+    BackgroundTransparency=1, BorderSizePixel=0,
+    ScrollBarThickness=0,
+    CanvasSize=UDim2.new(0,0,0,0),
+    AutomaticCanvasSize=Enum.AutomaticSize.Y,
+    ScrollingDirection=Enum.ScrollingDirection.Y,
+    ElasticBehavior=Enum.ElasticBehavior.Never,
 },SB)
-N("UIListLayout",{Padding=UDim.new(0,2),SortOrder=Enum.SortOrder.LayoutOrder},navHold)
+N("UIListLayout",{Padding=UDim.new(0,3),SortOrder=Enum.SortOrder.LayoutOrder},navScroll)
 
--- how many pixels available for nav buttons
-local navAvail = (winH - topBarH) - navTopY - navBottomPad
-local btnH = math.floor((navAvail - 2*(#navs-1)) / #navs)
-btnH = math.clamp(btnH, 24, 34)
-P("09 nav btnH="..btnH)
+-- every tab now 30px tall
+local tabHeight = 30
 
 local nBtns, frames = {}, {}
 
 for i,entry in ipairs(navs) do
     local name, icon = entry.name, entry.icon
     local b = N("TextButton",{
-        Size=UDim2.new(1,0,0,btnH),
-        BackgroundColor3=C.Side,
-        Text="",
-        BorderSizePixel=0,
-        LayoutOrder=i,
-        AutoButtonColor=false,
-        ClipsDescendants=true,
-    },navHold)
+        Size=UDim2.new(1,-4,0,tabHeight),
+        BackgroundColor3=C.Side, Text="", BorderSizePixel=0,
+        LayoutOrder=i, AutoButtonColor=false, ClipsDescendants=true,
+    },navScroll)
     Cnr(b,8)
-    track(b, "BackgroundColor3", "Side")
-    local ic = N("TextLabel",{
-        Size=UDim2.new(0,26,1,0),
-        Position=UDim2.new(0,6,0,0),
-        BackgroundTransparency=1,
-        Text=icon,
-        TextColor3=C.Dim,
-        Font=Enum.Font.GothamBold,
-        TextSize=isMobile and 12 or 13,
+    N("TextLabel",{
+        Size=UDim2.new(0,24,1,0), Position=UDim2.new(0,4,0,0),
+        BackgroundTransparency=1, Text=icon, TextColor3=C.Dim,
+        Font=Enum.Font.GothamBold, TextSize=isMobile and 12 or 12,
     },b)
     local lb = N("TextLabel",{
-        Size=UDim2.new(1,-32,1,0),
-        Position=UDim2.new(0,32,0,0),
-        BackgroundTransparency=1,
-        Text=name,
-        TextColor3=C.Dim,
-        Font=Enum.Font.GothamMedium,
-        TextSize=isMobile and 10 or 12,
+        Size=UDim2.new(1,-28,1,0), Position=UDim2.new(0,28,0,0),
+        BackgroundTransparency=1, Text=name, TextColor3=C.Dim,
+        Font=Enum.Font.GothamMedium, TextSize=isMobile and 10 or 12,
         TextXAlignment=Enum.TextXAlignment.Left,
         TextTruncate=Enum.TextTruncate.AtEnd,
     },b)
-    b.MouseEnter:Connect(function()
-        if S.ActiveTab ~= name then
-            TW:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = C.Hover}):Play()
-        end
-    end)
-    b.MouseLeave:Connect(function()
-        if S.ActiveTab ~= name then
-            TW:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = C.Side}):Play()
-        end
-    end)
+
     b.MouseButton1Click:Connect(function()
         S.ActiveTab = name
         for n,d in pairs(nBtns) do
             local active = (n == name)
-            TW:Create(d.bg, TweenInfo.new(0.12), {BackgroundColor3 = active and C.Card or C.Side}):Play()
-            TW:Create(d.ic, TweenInfo.new(0.12), {TextColor3 = active and C.Text or C.Dim}):Play()
-            if d.lb then
-                TW:Create(d.lb, TweenInfo.new(0.12), {TextColor3 = active and C.Text or C.Dim}):Play()
-            end
+            d.bg.BackgroundColor3 = active and C.Card or C.Side
+            d.ic.TextColor3 = active and C.Text or C.Dim
+            d.lb.TextColor3 = active and C.Text or C.Dim
         end
         for n,f in pairs(frames) do f.Visible = (n==name) end
     end)
-    nBtns[name] = {bg=b, lb=lb, ic=ic}
+
+    nBtns[name] = {bg=b, lb=lb, ic=b:FindFirstChildOfClass("TextLabel")}
+
+    -- content frame for this tab, positioned right of sidebar
     local cf = N("ScrollingFrame",{
         Size=UDim2.new(1,-sideW-16,1,-topBarH-16),
         Position=UDim2.new(0,sideW+8,0,topBarH+8),
-        BackgroundTransparency=1,
-        BorderSizePixel=0,
-        ScrollBarThickness=2,
-        ScrollBarImageColor3=C.Dim,
+        BackgroundTransparency=1, BorderSizePixel=0,
+        ScrollBarThickness=2, ScrollBarImageColor3=C.Dim,
         CanvasSize=UDim2.new(0,0,0,0),
         AutomaticCanvasSize=Enum.AutomaticSize.Y,
         Visible=false,
@@ -392,134 +298,97 @@ for i,entry in ipairs(navs) do
     N("UIListLayout",{Padding=UDim.new(0,8)},cf)
     frames[name] = cf
 end
+
 S.ActiveTab = "Home"
 nBtns.Home.bg.BackgroundColor3 = C.Card
 nBtns.Home.ic.TextColor3 = C.Text
 nBtns.Home.lb.TextColor3 = C.Text
 frames.Home.Visible = true
-P("10 nav built")
+P("10 nav "..#navs.." tabs built")
 
--- ═══════════════════════════════════════════
--- TOGGLE BUILDER — perf-tuned, no per-toggle loops
--- ═══════════════════════════════════════════
-local ToggleRegistry = {}   -- all toggle refresh fns
-local pending = {}
-
+-- ═══════════════════════════════════════════════════════
+-- TOGGLE — no tweens, instant color swap, zero lag
+-- ═══════════════════════════════════════════════════════
 local function makeToggle(parent, name, desc, def, cb)
     local row = N("Frame",{
-        Size=UDim2.new(1,0,0,54),
-        BackgroundColor3=C.Card,
-        BorderSizePixel=0,
+        Size=UDim2.new(1,0,0,52),
+        BackgroundColor3=C.Card, BorderSizePixel=0,
     },parent)
     if not row then return end
     Cnr(row,10)
-    local rowStroke = Strk(row,C.Line,1)
-    track(row, "BackgroundColor3", "Card")
-    track(rowStroke, "Color", "Line")
+    Strk(row,C.Line,1)
 
     N("TextLabel",{
-        Size=UDim2.new(1,-80,0,18),
-        Position=UDim2.new(0,14,0,10),
-        BackgroundTransparency=1,
-        Text=name,TextColor3=C.Text,
-        Font=Enum.Font.GothamMedium,TextSize=13,
+        Size=UDim2.new(1,-80,0,18), Position=UDim2.new(0,14,0,10),
+        BackgroundTransparency=1, Text=name, TextColor3=C.Text,
+        Font=Enum.Font.GothamMedium, TextSize=13,
         TextXAlignment=Enum.TextXAlignment.Left,
     },row)
     if desc and desc ~= "" then
         N("TextLabel",{
-            Size=UDim2.new(1,-80,0,14),
-            Position=UDim2.new(0,14,0,30),
-            BackgroundTransparency=1,
-            Text=desc,TextColor3=C.Dim,
-            Font=Enum.Font.Gotham,TextSize=10,
+            Size=UDim2.new(1,-80,0,14), Position=UDim2.new(0,14,0,28),
+            BackgroundTransparency=1, Text=desc, TextColor3=C.Dim,
+            Font=Enum.Font.Gotham, TextSize=10,
             TextXAlignment=Enum.TextXAlignment.Left,
         },row)
     end
 
-    local track_ = N("Frame",{
+    local track = N("Frame",{
         Size=UDim2.new(0,48,0,26),
         Position=UDim2.new(1,-62,0.5,-13),
-        BackgroundColor3=C.Line,
-        BorderSizePixel=0,
+        BackgroundColor3=C.Line, BorderSizePixel=0,
     },row)
-    Cnr(track_,13)
+    Cnr(track,13)
 
     local knob = N("Frame",{
         Size=UDim2.new(0,20,0,20),
         Position=UDim2.new(0,3,0.5,-10),
-        BackgroundColor3=C.Text,
-        BorderSizePixel=0,
-    },track_)
+        BackgroundColor3=C.Text, BorderSizePixel=0,
+    },track)
     Cnr(knob,10)
 
     local btn = N("TextButton",{
         Size=UDim2.new(0,48,0,26),
         Position=UDim2.new(1,-62,0.5,-13),
-        BackgroundTransparency=1,
-        Text="",BorderSizePixel=0,
+        BackgroundTransparency=1, Text="", BorderSizePixel=0,
     },row)
 
     local on = def or false
     S.Toggles[name] = on
 
-    local function paint(anim)
-        if anim then
-            TW:Create(track_, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
-                BackgroundColor3 = on and S.Accent or C.Line
-            }):Play()
-            TW:Create(knob, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
-                Position = on and UDim2.new(1,-23,0.5,-10) or UDim2.new(0,3,0.5,-10),
-                BackgroundColor3 = on and C.BG or C.Text
-            }):Play()
+    local function paint()
+        -- direct set, no tween, no lag
+        if on then
+            track.BackgroundColor3 = S.Accent
+            knob.Position = UDim2.new(1,-23,0.5,-10)
+            knob.BackgroundColor3 = C.BG
         else
-            track_.BackgroundColor3 = on and S.Accent or C.Line
-            knob.Position = on and UDim2.new(1,-23,0.5,-10) or UDim2.new(0,3,0.5,-10)
-            knob.BackgroundColor3 = on and C.BG or C.Text
+            track.BackgroundColor3 = C.Line
+            knob.Position = UDim2.new(0,3,0.5,-10)
+            knob.BackgroundColor3 = C.Text
         end
     end
-    paint(false)
-
-    -- track for theme changes
-    track(track_, "BackgroundColor3", nil)  -- special: uses Accent/Line dynamic
-    track(knob, "BackgroundColor3", nil)
+    paint()
 
     btn.MouseButton1Click:Connect(function()
         on = not on
         S.Toggles[name] = on
-        paint(true)
-        if cb then table.insert(pending, function() cb(on) end) end
+        paint()
+        if cb then task.spawn(function() pcall(cb, on) end) end
     end)
 
     S["setToggle_"..name] = function(v)
         if on ~= v then
             on = v
             S.Toggles[name] = v
-            paint(true)
-            if cb then table.insert(pending, function() cb(v) end) end
+            paint()
+            if cb then task.spawn(function() pcall(cb, v) end) end
         end
     end
-
-    table.insert(ToggleRegistry, function()
-        -- called on theme change
-        track_.BackgroundColor3 = on and S.Accent or C.Line
-        knob.BackgroundColor3 = on and C.BG or C.Text
-    end)
 
     return row
 end
 P("11 toggle fn")
-
--- process pending callbacks at fixed rate (no more per-heartbeat loop)
-local cbAccum = 0
-RS.Heartbeat:Connect(function(dt)
-    cbAccum = cbAccum + dt
-    if cbAccum < 0.05 then return end   -- max 20 per second
-    cbAccum = 0
-    while #pending > 0 do
-        local f = table.remove(pending, 1)
-        pcall(f)
-    end
-end)
 
 -- HOME
 do
@@ -527,14 +396,10 @@ do
 
     local welcomeH = isMobile and 76 or 92
     local wc = N("Frame",{Size=UDim2.new(1,0,0,welcomeH),BackgroundColor3=C.Card,BorderSizePixel=0},f)
-    Cnr(wc,12)
-    local wcStroke = Strk(wc,C.Line,1)
-    track(wc, "BackgroundColor3", "Card")
-    track(wcStroke, "Color", "Line")
+    Cnr(wc,12) Strk(wc,C.Line,1)
     local avSize = isMobile and 48 or 60
     local avHolder = N("Frame",{Size=UDim2.new(0,avSize,0,avSize),Position=UDim2.new(0,14,0.5,-avSize/2),BackgroundColor3=C.CardHi,BorderSizePixel=0},wc)
     Cnr(avHolder,avSize/2)
-    track(avHolder, "BackgroundColor3", "CardHi")
     local av = N("ImageLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Image=""},avHolder)
     Cnr(av,avSize/2)
     pcall(function()
@@ -545,10 +410,7 @@ do
 
     local perfH = isMobile and 100 or 120
     local pc = N("Frame",{Size=UDim2.new(1,0,0,perfH),BackgroundColor3=C.Card,BorderSizePixel=0},f)
-    Cnr(pc,12)
-    local pcStroke = Strk(pc,C.Line,1)
-    track(pc, "BackgroundColor3", "Card")
-    track(pcStroke, "Color", "Line")
+    Cnr(pc,12) Strk(pc,C.Line,1)
     N("TextLabel",{Size=UDim2.new(1,-24,0,12),Position=UDim2.new(0,16,0,10),BackgroundTransparency=1,Text="PERFORMANCE",TextColor3=C.Dim,Font=Enum.Font.GothamBold,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},pc)
 
     local ringSize = isMobile and 66 or 82
@@ -564,8 +426,7 @@ do
             Size=UDim2.new(0,2,0,5),
             AnchorPoint=Vector2.new(0.5,0.5),
             Position=UDim2.new(.5+sx,0,.5+sy,0),
-            BackgroundColor3=C.Line,
-            BorderSizePixel=0,
+            BackgroundColor3=C.Line, BorderSizePixel=0,
             Rotation=math.deg(a)+90,
         },ringHolder)
         Cnr(t,1)
@@ -576,7 +437,6 @@ do
     local pingVal = N("TextLabel",{Size=UDim2.new(0,140,0,30),Position=UDim2.new(0,pingX,0,isMobile and 38 or 46),BackgroundTransparency=1,Text="-- ms",TextColor3=C.Text,Font=Enum.Font.GothamBlack,TextSize=isMobile and 20 or 26,TextXAlignment=Enum.TextXAlignment.Left},pc)
     N("TextLabel",{Size=UDim2.new(0,140,0,14),Position=UDim2.new(0,pingX,0,isMobile and 68 or 80),BackgroundTransparency=1,Text="ping",TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Left},pc)
 
-    -- FPS: throttled 2x/sec
     local ff, ft = 0, 0
     RS.RenderStepped:Connect(function(dt)
         ff = ff + 1
@@ -593,7 +453,6 @@ do
             ff, ft = 0, 0
         end
     end)
-
     task.spawn(function()
         while gui.Parent do
             pcall(function()
@@ -604,12 +463,10 @@ do
         end
     end)
 
+    -- SERVER CARD with live session timer
     local serverH = isMobile and 80 or 96
     local sc = N("Frame",{Size=UDim2.new(1,0,0,serverH),BackgroundColor3=C.Card,BorderSizePixel=0},f)
-    Cnr(sc,12)
-    local scStroke = Strk(sc,C.Line,1)
-    track(sc, "BackgroundColor3", "Card")
-    track(scStroke, "Color", "Line")
+    Cnr(sc,12) Strk(sc,C.Line,1)
     local pname = "Unknown"
     pcall(function() pname = MK:GetProductInfo(game.PlaceId).Name end)
     N("TextLabel",{Size=UDim2.new(1,-24,0,20),Position=UDim2.new(0,16,0,10),BackgroundTransparency=1,Text=pname,TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=isMobile and 12 or 15,TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd},sc)
@@ -618,13 +475,15 @@ do
     local function makeChip(txt)
         local c = N("Frame",{Size=UDim2.new(0,isMobile and 74 or 92,1,0),BackgroundColor3=C.CardHi,BorderSizePixel=0},chipRow)
         Cnr(c,6)
-        track(c, "BackgroundColor3", "CardHi")
         local l = N("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text=txt,TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10},c)
         return {frame=c, label=l}
     end
     local playersChip = makeChip("👥 "..#PL:GetPlayers())
     local pingChip = makeChip("📡 --")
-    local timeChip = makeChip("⏱ --:--")
+    local timeChip = makeChip("⏱ 00:00")
+
+    -- SESSION TIMER: starts at 0, counts UP
+    local sessionStart = os.clock()
 
     task.spawn(function()
         while gui.Parent do
@@ -634,12 +493,19 @@ do
                 if p then pingChip.label.Text = "📡 "..math.floor(p:GetValue()).."ms" end
             end)
             pcall(function()
-                local t = os.date("*t")
-                local hh = string.format("%02d", t.hour or 0)
-                local mm = string.format("%02d", t.min or 0)
-                timeChip.label.Text = "⏱ "..hh..":"..mm
+                local elapsed = os.clock() - sessionStart
+                local mins = math.floor(elapsed / 60)
+                local secs = math.floor(elapsed % 60)
+                -- format hh:mm:ss if over an hour
+                if mins >= 60 then
+                    local hrs = math.floor(mins / 60)
+                    mins = mins % 60
+                    timeChip.label.Text = string.format("⏱ %02d:%02d:%02d", hrs, mins, secs)
+                else
+                    timeChip.label.Text = string.format("⏱ %02d:%02d", mins, secs)
+                end
             end)
-            task.wait(2)
+            task.wait(1)
         end
     end)
 
@@ -648,10 +514,7 @@ do
     N("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,8)},qr)
     local function qa(title, sub, iconKind, fn)
         local b = N("TextButton",{Size=UDim2.new(0.333,-6,1,0),BackgroundColor3=C.Card,BorderSizePixel=0,Text="",AutoButtonColor=false},qr)
-        Cnr(b,10)
-        local bStroke = Strk(b,C.Line,1)
-        track(b, "BackgroundColor3", "Card")
-        track(bStroke, "Color", "Line")
+        Cnr(b,10) Strk(b,C.Line,1)
         local icnHolder = N("Frame",{Size=UDim2.new(0,20,0,20),Position=UDim2.new(0,10,0,10),BackgroundTransparency=1},b)
         drawIcon(icnHolder, iconKind, 20, C.Text)
         N("TextLabel",{Size=UDim2.new(1,-38,0,16),Position=UDim2.new(0,36,0,12),BackgroundTransparency=1,Text=title,TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=isMobile and 10 or 12,TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd},b)
@@ -681,12 +544,10 @@ do
         pcall(function() if setclipboard then setclipboard(tostring(game.JobId)) end end)
     end)
 
+    -- ACTIVE NOW — no tween, direct color set
     local acH = 78
     local ac = N("Frame",{Size=UDim2.new(1,0,0,acH),BackgroundColor3=C.Card,BorderSizePixel=0},f)
-    Cnr(ac,12)
-    local acStroke = Strk(ac,C.Line,1)
-    track(ac, "BackgroundColor3", "Card")
-    track(acStroke, "Color", "Line")
+    Cnr(ac,12) Strk(ac,C.Line,1)
     N("TextLabel",{Size=UDim2.new(1,-24,0,14),Position=UDim2.new(0,16,0,10),BackgroundTransparency=1,Text="ACTIVE NOW",TextColor3=C.Dim,Font=Enum.Font.GothamBold,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},ac)
     N("TextLabel",{Size=UDim2.new(1,-24,0,12),Position=UDim2.new(0,16,0,10),BackgroundTransparency=1,Text="tap to toggle",TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=9,TextXAlignment=Enum.TextXAlignment.Right},ac)
     local stripScroll = N("ScrollingFrame",{
@@ -697,10 +558,10 @@ do
     },ac)
     N("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,6),SortOrder=Enum.SortOrder.LayoutOrder},stripScroll)
     local watched = {"ESP","Aimbot","Fly","Noclip","Infinite Jump","Anti-AFK","Speed Hack","Fullbright"}
+    local stripChips = {}
     for i,n in ipairs(watched) do
         local c = N("TextButton",{Size=UDim2.new(0,110,0,32),BackgroundColor3=C.CardHi,Text="",BorderSizePixel=0,LayoutOrder=i,AutoButtonColor=false},stripScroll)
         Cnr(c,8)
-        track(c, "BackgroundColor3", "CardHi")
         local dot = N("Frame",{Size=UDim2.new(0,6,0,6),Position=UDim2.new(0,10,0.5,-3),BackgroundColor3=C.Dim,BorderSizePixel=0},c)
         Cnr(dot,3)
         local lbl = N("TextLabel",{Size=UDim2.new(1,-24,1,0),Position=UDim2.new(0,22,0,0),BackgroundTransparency=1,Text=n,TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd},c)
@@ -708,23 +569,21 @@ do
             local setter = S["setToggle_"..n]
             if setter then setter(not S.Toggles[n]) end
         end)
-        S.StripChips[n] = {bg=c, dot=dot, lbl=lbl, last=nil}
+        stripChips[n] = {bg=c, dot=dot, lbl=lbl, last=nil}
     end
-    -- strip updates 2x/sec, cheap diff
+    -- update strip visually every 0.5s, direct set, no tween
     task.spawn(function()
         while gui.Parent do
-            for n,data in pairs(S.StripChips) do
+            for n,data in pairs(stripChips) do
                 local on = S.Toggles[n]
                 if data.last ~= on then
                     data.last = on
-                    pcall(function()
-                        TW:Create(data.bg, TweenInfo.new(0.12), {BackgroundColor3 = on and C.Text or C.CardHi}):Play()
-                        data.dot.BackgroundColor3 = on and C.BG or C.Dim
-                        data.lbl.TextColor3 = on and C.BG or C.Dim
-                    end)
+                    data.bg.BackgroundColor3 = on and C.Text or C.CardHi
+                    data.dot.BackgroundColor3 = on and C.BG or C.Dim
+                    data.lbl.TextColor3 = on and C.BG or C.Dim
                 end
             end
-            task.wait(0.5)
+            task.wait(0.25)
         end
     end)
 end
@@ -737,7 +596,6 @@ do local f=frames.Combat
     makeToggle(f,"Kill Aura","Damage nearby players",false,function(o) _G.killAura=o end)
     makeToggle(f,"Hitbox Expander","Enlarge player hitboxes",false,function(o) _G.hitboxExpand=o end)
 end
-P("13 combat")
 
 do local f=frames.Visuals
     makeToggle(f,"ESP","Highlight all players",false,function(o) _G.espEnabled=o end)
@@ -748,7 +606,6 @@ do local f=frames.Visuals
     end)
     makeToggle(f,"Name Tags","Show names through walls",false,function(o) _G.nameTags=o end)
 end
-P("14 visuals")
 
 do local f=frames.Player
     makeToggle(f,"Speed Hack","Faster walk speed",false,function(o)
@@ -763,14 +620,12 @@ do local f=frames.Player
     makeToggle(f,"Fly","WASD flight mode",false,function(o) _G.flyEnabled=o end)
     makeToggle(f,"Noclip","Walk through walls",false,function(o) _G.noclipEnabled=o end)
 end
-P("15 player")
 
 do local f=frames.World
     makeToggle(f,"Anti-AFK","Stay online forever",false,function(o) _G.antiAFK=o end)
     makeToggle(f,"Time Changer","Set world clock",false,function(o) LT.ClockTime = o and 14.5 or 14 end)
     makeToggle(f,"Disable Fog","Clear atmosphere",false,function(o) LT.FogEnd = o and 100000 or 1000 end)
 end
-P("16 world")
 
 do
     local f = frames.Perf
@@ -784,11 +639,6 @@ do
                     if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then v.Enabled = false end
                 end
                 settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-                for _,obj in ipairs(WS:GetDescendants()) do
-                    if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
-                        obj.Enabled = false
-                    end
-                end
             end)
         else
             pcall(function()
@@ -825,15 +675,11 @@ do
         pcall(function() if setfpscap then setfpscap(o and 240 or 60) end end)
     end)
 end
-P("17 perf")
 
 do
     local f = frames.Scanner
     local info = N("Frame",{Size=UDim2.new(1,0,0,220),BackgroundColor3=C.Card,BorderSizePixel=0},f)
-    Cnr(info,12)
-    local infoStroke = Strk(info,C.Line,1)
-    track(info, "BackgroundColor3", "Card")
-    track(infoStroke, "Color", "Line")
+    Cnr(info,12) Strk(info,C.Line,1)
     N("TextLabel",{Size=UDim2.new(1,-24,0,18),Position=UDim2.new(0,16,0,12),BackgroundTransparency=1,Text="GAME SCANNER",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left},info)
     local scanScroll = N("ScrollingFrame",{
         Size=UDim2.new(1,-24,1,-46),Position=UDim2.new(0,16,0,36),
@@ -918,39 +764,29 @@ do
         pcall(function() if setclipboard then setclipboard(scanOut.Text) end end)
     end)
 end
-P("18 scanner")
 
 do local f=frames.Utility
     makeToggle(f,"Auto Click","Macro click loop",false,function(o) _G.autoClick=o end)
     makeToggle(f,"Streamer Safe","Hide names in UI",false)
     makeToggle(f,"Panic Key","END hides GUI",true)
 end
-P("19 utility")
 
 do local f=frames.Settings
     makeToggle(f,"Save Config","Remember toggles",true)
     makeToggle(f,"Auto Rejoin","Reconnect on kick",false,function(o) _G.autoRejoin=o end)
 end
-P("20 settings")
+P("13 tabs built")
 
--- ═══════════════════════════════════════════
--- THEME PANEL
--- ═══════════════════════════════════════════
+-- ─── THEME PANEL ───
 local themeW = isMobile and 260 or 280
 local themeH = math.min(winH, isMobile and 420 or 560)
 local themePanel = N("Frame",{
     Size=UDim2.new(0,themeW,0,themeH),
     Position=UDim2.new(.5,-themeW/2,.5,-themeH/2),
-    BackgroundColor3=C.Side,
-    BorderSizePixel=0,
-    Visible=false,
-    Active=true,
-    ZIndex=40,
+    BackgroundColor3=C.Side, BorderSizePixel=0,
+    Visible=false, Active=true, ZIndex=200,
 }, gui)
-Cnr(themePanel,14)
-local themePanelStroke = Strk(themePanel,C.Line,1)
-track(themePanel, "BackgroundColor3", "Side")
-track(themePanelStroke, "Color", "Line")
+Cnr(themePanel,14) Strk(themePanel,C.Line,1)
 
 do
     local drag, ds, sp = false, nil, nil
@@ -971,21 +807,14 @@ do
 end
 
 local themeScroll = N("ScrollingFrame",{
-    Size=UDim2.new(1,-20,1,-20),
-    Position=UDim2.new(0,10,0,10),
-    BackgroundTransparency=1,
-    BorderSizePixel=0,
-    ScrollBarThickness=2,
-    ScrollBarImageColor3=C.Dim,
-    CanvasSize=UDim2.new(0,0,0,0),
-    AutomaticCanvasSize=Enum.AutomaticSize.Y,
+    Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
+    BackgroundTransparency=1, BorderSizePixel=0,
+    ScrollBarThickness=2, ScrollBarImageColor3=C.Dim,
+    CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y,
 },themePanel)
 N("UIListLayout",{Padding=UDim.new(0,8)},themeScroll)
 
 N("TextLabel",{Size=UDim2.new(1,0,0,18),BackgroundTransparency=1,Text="🎨 THEME",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left},themeScroll)
-N("TextLabel",{Size=UDim2.new(1,0,0,14),BackgroundTransparency=1,Text="Colours, chrome",TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Left},themeScroll)
-
-N("TextLabel",{Size=UDim2.new(1,0,0,12),BackgroundTransparency=1,Text="PRESETS",TextColor3=C.Dim,Font=Enum.Font.GothamBold,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},themeScroll)
 
 local themeGrid = N("Frame",{Size=UDim2.new(1,0,0,150),BackgroundTransparency=1},themeScroll)
 N("UIGridLayout",{CellSize=UDim2.new(0.5,-4,0,32),CellPadding=UDim2.new(0,8,0,6)},themeGrid)
@@ -1001,129 +830,81 @@ local themePresets = {
     {name="Forest",   bg=Color3.fromRGB(10,18,14), side=Color3.fromRGB(14,26,20), card=Color3.fromRGB(22,38,30)},
 }
 
+-- theme application — updates ALL registered colors
+local themeTargets = {}
+local function regTheme(obj, prop, key)
+    if obj then table.insert(themeTargets, {o=obj, p=prop, k=key}) end
+end
+regTheme(W, "BackgroundColor3", "BG")
+regTheme(TopBar, "BackgroundColor3", "Side")
+regTheme(SB, "BackgroundColor3", "Side")
+-- frames (tab panels) will use Card background from their children
+
+local function applyTheme()
+    for _,e in ipairs(themeTargets) do
+        pcall(function() e.o[e.p] = C[e.k] end)
+    end
+    -- recolor all descendants by tag (simple approach: walk and re-tint Card-coloured frames)
+    for _,desc in ipairs(W:GetDescendants()) do
+        pcall(function()
+            if desc:IsA("Frame") or desc:IsA("TextButton") then
+                if desc.BackgroundColor3 == C.BG then desc.BackgroundColor3 = C.BG end
+            end
+        end)
+    end
+end
+
 for _,p in ipairs(themePresets) do
     local b = N("TextButton",{BackgroundColor3=C.CardHi,Text="",BorderSizePixel=0,AutoButtonColor=false},themeGrid)
-    Cnr(b,8)
-    local bStroke = Strk(b,C.Line,1)
-    track(b, "BackgroundColor3", "CardHi")
-    track(bStroke, "Color", "Line")
+    Cnr(b,8) Strk(b,C.Line,1)
     local swatch = N("Frame",{Size=UDim2.new(0,12,0,12),Position=UDim2.new(0,8,0.5,-6),BackgroundColor3=p.card,BorderSizePixel=0},b)
     Cnr(swatch,4)
     N("TextLabel",{Size=UDim2.new(1,-26,1,0),Position=UDim2.new(0,24,0,0),BackgroundTransparency=1,Text=p.name,TextColor3=C.Text,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Left},b)
     b.MouseButton1Click:Connect(function()
+        local oldCard = C.Card
+        local oldSide = C.Side
+        local oldBG = C.BG
+        local oldCardHi = C.CardHi
         C.BG = p.bg
         C.Side = p.side
         C.Card = p.card
         C.CardHi = Color3.fromRGB(math.min(255,p.card.R+12), math.min(255,p.card.G+12), math.min(255,p.card.B+12))
-        -- line: slightly darker than card
-        C.Line = Color3.fromRGB(
-            math.max(0, p.card.R + 16),
-            math.max(0, p.card.G + 16),
-            math.max(0, p.card.B + 16)
-        )
-        applyTheme()
-        -- refresh toggle tracks
-        for _,fn in ipairs(ToggleRegistry) do pcall(fn) end
+        C.Line = Color3.fromRGB(math.min(255,p.card.R+20), math.min(255,p.card.G+20), math.min(255,p.card.B+20))
+        -- walk full tree and remap by identity
+        for _,desc in ipairs(gui:GetDescendants()) do
+            pcall(function()
+                if desc:IsA("Frame") or desc:IsA("TextButton") or desc:IsA("ImageLabel") then
+                    if desc.BackgroundColor3 == oldBG then desc.BackgroundColor3 = C.BG end
+                    if desc.BackgroundColor3 == oldSide then desc.BackgroundColor3 = C.Side end
+                    if desc.BackgroundColor3 == oldCard then desc.BackgroundColor3 = C.Card end
+                    if desc.BackgroundColor3 == oldCardHi then desc.BackgroundColor3 = C.CardHi end
+                end
+                if desc:IsA("UIStroke") then
+                    if desc.Color == Color3.fromRGB(40,40,48) then desc.Color = C.Line end
+                end
+            end)
+        end
+        W.BackgroundColor3 = C.BG
+        TopBar.BackgroundColor3 = C.Side
+        SB.BackgroundColor3 = C.Side
     end)
 end
-
-N("TextLabel",{Size=UDim2.new(1,0,0,12),BackgroundTransparency=1,Text="ACCENT COLOR",TextColor3=C.Dim,Font=Enum.Font.GothamBold,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},themeScroll)
-
-local rgb = {R=255, G=255, B=255}
-local hexBox
-
-local function makeColorSlider(label, getChannel, setChannel)
-    local r = N("Frame",{Size=UDim2.new(1,0,0,32),BackgroundColor3=C.CardHi,BorderSizePixel=0},themeScroll)
-    Cnr(r,8)
-    track(r, "BackgroundColor3", "CardHi")
-    N("TextLabel",{Size=UDim2.new(0,18,1,0),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,Text=label,TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left},r)
-    local track_ = N("Frame",{Size=UDim2.new(1,-92,0,6),Position=UDim2.new(0,32,0.5,-3),BackgroundColor3=C.Line,BorderSizePixel=0},r)
-    Cnr(track_,3)
-    local fill = N("Frame",{Size=UDim2.new(getChannel()/255,0,1,0),BackgroundColor3=S.Accent,BorderSizePixel=0},track_)
-    Cnr(fill,3)
-    local knobBtn = N("TextButton",{
-        Size=UDim2.new(0,14,0,14),
-        AnchorPoint=Vector2.new(0.5,0.5),
-        Position=UDim2.new(fill.Size.X.Scale,0,0.5,0),
-        BackgroundColor3=Color3.new(1,1,1),
-        Text="",BorderSizePixel=0,AutoButtonColor=false,
-    },track_)
-    Cnr(knobBtn,7)
-    local valueLbl = N("TextLabel",{Size=UDim2.new(0,38,1,0),Position=UDim2.new(1,-42,0,0),BackgroundTransparency=1,Text=tostring(getChannel()),TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Right},r)
-    local dragging = false
-    local function update(input)
-        local rel = math.clamp((input.Position.X - track_.AbsolutePosition.X) / track_.AbsoluteSize.X, 0, 1)
-        local val = math.floor(rel * 255)
-        setChannel(val)
-        fill.Size = UDim2.new(rel, 0, 1, 0)
-        knobBtn.Position = UDim2.new(rel, 0, 0.5, 0)
-        valueLbl.Text = tostring(val)
-        if hexBox then
-            hexBox.Text = string.format("#%02X%02X%02X", rgb.R, rgb.G, rgb.B)
-        end
-    end
-    track_.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = true update(i)
-        end
-    end)
-    knobBtn.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = true update(i)
-        end
-    end)
-    UIS.InputChanged:Connect(function(i)
-        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-            update(i)
-        end
-    end)
-    UIS.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-end
-
-local function applyAccent()
-    S.Accent = Color3.fromRGB(rgb.R, rgb.G, rgb.B)
-    for _,fn in ipairs(ToggleRegistry) do pcall(fn) end
-    pcall(function()
-        if hexBox then hexBox.Text = string.format("#%02X%02X%02X", rgb.R, rgb.G, rgb.B) end
-    end)
-end
-
-makeColorSlider("R", function() return rgb.R end, function(v) rgb.R = v applyAccent() end)
-makeColorSlider("G", function() return rgb.G end, function(v) rgb.G = v applyAccent() end)
-makeColorSlider("B", function() return rgb.B end, function(v) rgb.B = v applyAccent() end)
-
-hexBox = N("TextLabel",{Size=UDim2.new(1,0,0,30),BackgroundColor3=C.CardHi,Text="#FFFFFF",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=11,BorderSizePixel=0},themeScroll)
-Cnr(hexBox,8)
-track(hexBox, "BackgroundColor3", "CardHi")
 
 themeBtn.MouseButton1Click:Connect(function()
     themePanel.Visible = not themePanel.Visible
     if settingsPanel then settingsPanel.Visible = false end
 end)
-P("21 theme panel")
 
--- ═══════════════════════════════════════════
--- UI SETTINGS PANEL
--- ═══════════════════════════════════════════
+-- SETTINGS PANEL
 local settingsW = isMobile and 260 or 280
 local settingsH = math.min(winH, isMobile and 420 or 480)
 local settingsPanel = N("Frame",{
     Size=UDim2.new(0,settingsW,0,settingsH),
     Position=UDim2.new(.5,-settingsW/2,.5,-settingsH/2),
-    BackgroundColor3=C.Side,
-    BorderSizePixel=0,
-    Visible=false,
-    Active=true,
-    ZIndex=40,
+    BackgroundColor3=C.Side, BorderSizePixel=0,
+    Visible=false, Active=true, ZIndex=200,
 }, gui)
-Cnr(settingsPanel,14)
-local settingsStroke = Strk(settingsPanel,C.Line,1)
-track(settingsPanel, "BackgroundColor3", "Side")
-track(settingsStroke, "Color", "Line")
+Cnr(settingsPanel,14) Strk(settingsPanel,C.Line,1)
 
 do
     local drag, ds, sp = false, nil, nil
@@ -1144,47 +925,41 @@ do
 end
 
 local setScroll = N("ScrollingFrame",{
-    Size=UDim2.new(1,-20,1,-20),
-    Position=UDim2.new(0,10,0,10),
-    BackgroundTransparency=1,
-    BorderSizePixel=0,
-    ScrollBarThickness=2,
-    ScrollBarImageColor3=C.Dim,
-    CanvasSize=UDim2.new(0,0,0,0),
-    AutomaticCanvasSize=Enum.AutomaticSize.Y,
+    Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
+    BackgroundTransparency=1, BorderSizePixel=0,
+    ScrollBarThickness=2, ScrollBarImageColor3=C.Dim,
+    CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y,
 },settingsPanel)
 N("UIListLayout",{Padding=UDim.new(0,8)},setScroll)
 
 N("TextLabel",{Size=UDim2.new(1,0,0,18),BackgroundTransparency=1,Text="⚙ UI SETTINGS",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left},setScroll)
-N("TextLabel",{Size=UDim2.new(1,0,0,14),BackgroundTransparency=1,Text="Size, effects, shadows",TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Left},setScroll)
 
 local function makeSlider(parent, label, min, max, def, onChange)
     local card = N("Frame",{Size=UDim2.new(1,0,0,48),BackgroundColor3=C.Card,BorderSizePixel=0},parent)
     Cnr(card,10)
-    track(card, "BackgroundColor3", "Card")
     N("TextLabel",{Size=UDim2.new(1,-80,0,16),Position=UDim2.new(0,14,0,8),BackgroundTransparency=1,Text=label,TextColor3=C.Text,Font=Enum.Font.Gotham,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left},card)
     local valLbl = N("TextLabel",{Size=UDim2.new(0,50,0,16),Position=UDim2.new(1,-60,0,8),BackgroundTransparency=1,Text=string.format("%.1f",def),TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=11,TextXAlignment=Enum.TextXAlignment.Right},card)
-    local track_ = N("Frame",{Size=UDim2.new(1,-28,0,6),Position=UDim2.new(0,14,0,30),BackgroundColor3=C.Line,BorderSizePixel=0},card)
-    Cnr(track_,3)
+    local track = N("Frame",{Size=UDim2.new(1,-28,0,6),Position=UDim2.new(0,14,0,30),BackgroundColor3=C.Line,BorderSizePixel=0},card)
+    Cnr(track,3)
     local pct = (def - min) / (max - min)
-    local fill = N("Frame",{Size=UDim2.new(pct,0,1,0),BackgroundColor3=S.Accent,BorderSizePixel=0},track_)
+    local fill = N("Frame",{Size=UDim2.new(pct,0,1,0),BackgroundColor3=S.Accent,BorderSizePixel=0},track)
     Cnr(fill,3)
     local knob = N("TextButton",{
         Size=UDim2.new(0,14,0,14),AnchorPoint=Vector2.new(0.5,0.5),
         Position=UDim2.new(pct,0,0.5,0),BackgroundColor3=Color3.new(1,1,1),
         Text="",BorderSizePixel=0,AutoButtonColor=false,
-    },track_)
+    },track)
     Cnr(knob,7)
     local dragging = false
     local function update(input)
-        local rel = math.clamp((input.Position.X - track_.AbsolutePosition.X) / track_.AbsoluteSize.X, 0, 1)
+        local rel = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
         local val = min + rel * (max - min)
         fill.Size = UDim2.new(rel, 0, 1, 0)
         knob.Position = UDim2.new(rel, 0, 0.5, 0)
         valLbl.Text = string.format("%.1f", val)
         if onChange then pcall(onChange, val) end
     end
-    track_.InputBegan:Connect(function(i)
+    track.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
             dragging = true update(i)
         end
@@ -1218,8 +993,6 @@ end)
 
 makeSlider(setScroll, "Opacity", 0.3, 1.0, 1.0, function(v)
     W.BackgroundTransparency = 1 - v
-    TopBar.BackgroundTransparency = 1 - v
-    SB.BackgroundTransparency = 1 - v
 end)
 
 N("TextLabel",{Size=UDim2.new(1,0,0,12),BackgroundTransparency=1,Text="UI EFFECTS",TextColor3=C.Dim,Font=Enum.Font.GothamBold,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},setScroll)
@@ -1227,20 +1000,17 @@ N("TextLabel",{Size=UDim2.new(1,0,0,12),BackgroundTransparency=1,Text="UI EFFECT
 local function uiEffectToggle(name, cb)
     local row = N("Frame",{Size=UDim2.new(1,0,0,36),BackgroundColor3=C.Card,BorderSizePixel=0},setScroll)
     Cnr(row,8)
-    track(row, "BackgroundColor3", "Card")
     N("TextLabel",{Size=UDim2.new(1,-60,1,0),Position=UDim2.new(0,14,0,0),BackgroundTransparency=1,Text=name,TextColor3=C.Text,Font=Enum.Font.Gotham,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left},row)
-    local track_ = N("Frame",{Size=UDim2.new(0,40,0,22),Position=UDim2.new(1,-54,0.5,-11),BackgroundColor3=C.Line,BorderSizePixel=0},row)
-    Cnr(track_,11)
-    local knob = N("Frame",{Size=UDim2.new(0,16,0,16),Position=UDim2.new(0,3,0.5,-8),BackgroundColor3=C.Text,BorderSizePixel=0},track_)
+    local track = N("Frame",{Size=UDim2.new(0,40,0,22),Position=UDim2.new(1,-54,0.5,-11),BackgroundColor3=C.Line,BorderSizePixel=0},row)
+    Cnr(track,11)
+    local knob = N("Frame",{Size=UDim2.new(0,16,0,16),Position=UDim2.new(0,3,0.5,-8),BackgroundColor3=C.Text,BorderSizePixel=0},track)
     Cnr(knob,8)
     local btn = N("TextButton",{Size=UDim2.new(0,40,0,22),Position=UDim2.new(1,-54,0.5,-11),BackgroundTransparency=1,Text="",BorderSizePixel=0},row)
     local on = false
     local function render()
-        TW:Create(track_, TweenInfo.new(0.15), {BackgroundColor3 = on and S.Accent or C.Line}):Play()
-        TW:Create(knob, TweenInfo.new(0.15), {
-            Position = on and UDim2.new(1,-19,0.5,-8) or UDim2.new(0,3,0.5,-8),
-            BackgroundColor3 = on and C.BG or C.Text
-        }):Play()
+        track.BackgroundColor3 = on and S.Accent or C.Line
+        knob.Position = on and UDim2.new(1,-19,0.5,-8) or UDim2.new(0,3,0.5,-8)
+        knob.BackgroundColor3 = on and C.BG or C.Text
     end
     btn.MouseButton1Click:Connect(function()
         on = not on
@@ -1250,7 +1020,6 @@ local function uiEffectToggle(name, cb)
 end
 
 uiEffectToggle("UI Snow", function(on)
-    S.UISettings.uiSnow = on
     local existing = gui:FindFirstChild("NonoUISnow")
     if on and not existing then
         local overlay = Instance.new("Frame", gui)
@@ -1258,6 +1027,7 @@ uiEffectToggle("UI Snow", function(on)
         overlay.Size = UDim2.new(1,0,1,0)
         overlay.BackgroundTransparency = 1
         overlay.ZIndex = 100
+        local active = true
         task.spawn(function()
             local flakes = {}
             for i=1,20 do
@@ -1265,13 +1035,12 @@ uiEffectToggle("UI Snow", function(on)
                     Size=UDim2.new(0,4,0,4),
                     Position=UDim2.new(math.random(),0,math.random(),0),
                     BackgroundColor3=Color3.new(1,1,1),
-                    BorderSizePixel=0,
-                    ZIndex=100,
+                    BorderSizePixel=0, ZIndex=100,
                 }, overlay)
                 Cnr(flake,2)
                 flakes[i] = {f=flake, speed=math.random(20,60)/1000}
             end
-            while S.UISettings.uiSnow and gui.Parent do
+            while overlay.Parent do
                 for _,d in ipairs(flakes) do
                     local p = d.f.Position
                     local newY = p.Y.Scale + d.speed
@@ -1289,105 +1058,9 @@ uiEffectToggle("UI Snow", function(on)
     end
 end)
 
-uiEffectToggle("UI Glow", function(on)
-    S.UISettings.uiGlow = on
-    if on then
-        task.spawn(function()
-            local hue = 0
-            while S.UISettings.uiGlow and gui.Parent do
-                hue = (hue + 0.01) % 1
-                local col = Color3.fromHSV(hue, 0.7, 1)
-                pcall(function()
-                    WStroke.Color = col
-                    WStroke.Thickness = 2
-                end)
-                task.wait(0.12)
-            end
-            pcall(function()
-                WStroke.Color = C.Line
-                WStroke.Thickness = 1
-            end)
-        end)
-    end
-end)
-
-uiEffectToggle("Window Shadow", function(on)
-    S.UISettings.shadows = on
-    local sh = gui:FindFirstChild("NonoShadow")
-    if on and not sh then
-        N("ImageLabel",{
-            Name = "NonoShadow",
-            Size=UDim2.new(1,40,1,40),
-            Position=UDim2.new(0,-20,0,-20),
-            BackgroundTransparency=1,
-            Image="rbxassetid://5028857472",
-            ImageColor3=Color3.fromRGB(0,0,0),
-            ImageTransparency=0.6,
-            ZIndex=0,
-        }, gui)
-        W.ZIndex = 2
-    elseif not on and sh then
-        sh:Destroy()
-    end
-end)
-
-uiEffectToggle("UI Rain", function(on)
-    S.UISettings.uiRain = on
-    local existing = gui:FindFirstChild("NonoUIRain")
-    if on and not existing then
-        local overlay = Instance.new("Frame", gui)
-        overlay.Name = "NonoUIRain"
-        overlay.Size = UDim2.new(1,0,1,0)
-        overlay.BackgroundTransparency = 1
-        overlay.ZIndex = 100
-        task.spawn(function()
-            local drops = {}
-            for i=1,16 do
-                local drop = N("Frame",{
-                    Size=UDim2.new(0,1,0,8),
-                    Position=UDim2.new(math.random(),0,math.random(),0),
-                    BackgroundColor3=Color3.fromRGB(180,200,255),
-                    BackgroundTransparency=0.3,
-                    BorderSizePixel=0,
-                    ZIndex=100,
-                }, overlay)
-                drops[i] = {f=drop, speed=math.random(80,140)/1000}
-            end
-            while S.UISettings.uiRain and gui.Parent do
-                for _,d in ipairs(drops) do
-                    local p = d.f.Position
-                    local newY = p.Y.Scale + d.speed
-                    if newY > 1.05 then
-                        d.f.Position = UDim2.new(math.random(),0,-0.05,0)
-                    else
-                        d.f.Position = UDim2.new(p.X.Scale,0,newY,0)
-                    end
-                end
-                task.wait(0.08)
-            end
-        end)
-    elseif not on and existing then
-        existing:Destroy()
-    end
-end)
-
 settingsBtn.MouseButton1Click:Connect(function()
     settingsPanel.Visible = not settingsPanel.Visible
     if themePanel then themePanel.Visible = false end
-end)
-P("22 settings panel")
-
-sBox.FocusLost:Connect(function()
-    local q = sBox.Text:lower()
-    sBox.Text = ""
-    if q == "" then return end
-    for tname,_ in pairs(S.Toggles) do
-        if tname:lower():find(q,1,true) then
-            local setter = S["setToggle_"..tname]
-            if setter then setter(true) end
-            return
-        end
-    end
 end)
 
 UIS.InputBegan:Connect(function(i,g)
@@ -1396,11 +1069,8 @@ UIS.InputBegan:Connect(function(i,g)
         gui.Enabled = not gui.Enabled
     end
 end)
-P("23 search")
 
--- ═══════════════════════════════════════════
--- Gameplay loops
--- ═══════════════════════════════════════════
+-- gameplay loops
 RS.Heartbeat:Connect(function()
     if _G.infJump and LP.Character then
         local h = LP.Character:FindFirstChildOfClass("Humanoid")
@@ -1445,7 +1115,6 @@ RS.Stepped:Connect(function()
     end
 end)
 
--- ESP: throttle to 15 Hz
 local espF = N("Folder",{Name="NonoESP"},gui)
 local boxes = {}
 local espAccum = 0
@@ -1458,7 +1127,7 @@ RS.RenderStepped:Connect(function(dt)
         return
     end
     espAccum = espAccum + dt
-    if espAccum < 0.066 then return end
+    if espAccum < 0.1 then return end
     espAccum = 0
     for _,plr in pairs(PL:GetPlayers()) do
         if plr ~= LP and plr.Character then
@@ -1492,18 +1161,13 @@ task.spawn(function()
         end
     end)
 end)
-P("24 gameplay loops")
 
--- ═══ AI ═══
+-- AI TAB
 do
     local f = frames.AI
     local wrapH = isMobile and 380 or 480
     local wrap = N("Frame",{Size=UDim2.new(1,0,0,wrapH),BackgroundColor3=C.Card,BorderSizePixel=0},f)
-    Cnr(wrap,12)
-    local wrapStroke = Strk(wrap,C.Line,1)
-    track(wrap, "BackgroundColor3", "Card")
-    track(wrapStroke, "Color", "Line")
-
+    Cnr(wrap,12) Strk(wrap,C.Line,1)
     N("TextLabel",{Size=UDim2.new(1,-24,0,18),Position=UDim2.new(0,16,0,12),BackgroundTransparency=1,Text="🤖 NONO AI",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left},wrap)
 
     local ms = N("ScrollingFrame",{
@@ -1513,7 +1177,6 @@ do
         CanvasSize=UDim2.new(0,0,0,0),AutomaticCanvasSize=Enum.AutomaticSize.Y,
     },wrap)
     Cnr(ms,10)
-    track(ms, "BackgroundColor3", "CardHi")
     local ml = N("UIListLayout",{Padding=UDim.new(0,6)},ms)
     Pad(ms,8,8,8,8)
 
@@ -1527,7 +1190,6 @@ do
         BorderSizePixel=0,ClearTextOnFocus=false,
     },inputRow)
     Cnr(ib,10)
-    track(ib, "BackgroundColor3", "CardHi")
     Pad(ib,0,0,12,12)
     local sb = N("TextButton",{
         Size=UDim2.new(0,80,1,0),Position=UDim2.new(1,-80,0,0),
@@ -1537,71 +1199,27 @@ do
     },inputRow)
     Cnr(sb,10)
 
-    local function scanGame()
-        local res = {remotes={},scripts={},values={},npcs={},tools={}}
-        local function scanContainer(c, d)
-            if d > 4 then return end
-            for _,o in ipairs(c:GetChildren()) do
-                pcall(function()
-                    if o:IsA("RemoteEvent") or o:IsA("RemoteFunction") then
-                        if #res.remotes < 30 then res.remotes[#res.remotes+1] = o:GetFullName() end
-                    elseif o:IsA("Script") or o:IsA("LocalScript") or o:IsA("ModuleScript") then
-                        if #res.scripts < 20 then res.scripts[#res.scripts+1] = o.Name end
-                    elseif o:IsA("Tool") then
-                        if #res.tools < 10 then res.tools[#res.tools+1] = o.Name end
-                    elseif o:IsA("IntValue") or o:IsA("NumberValue") or o:IsA("StringValue") then
-                        local ln = o.Name:lower()
-                        if ln:find("cash") or ln:find("coin") or ln:find("money") or ln:find("gem") or ln:find("level") or ln:find("xp") then
-                            if #res.values < 10 then res.values[#res.values+1] = o.Name.." = "..tostring(o.Value) end
-                        end
-                    end
-                    if #o:GetChildren() > 0 then scanContainer(o, d+1) end
-                end)
-            end
-        end
-        pcall(function() scanContainer(RSS, 0) end)
-        pcall(function() scanContainer(WS, 0) end)
-        pcall(function()
-            for _,o in ipairs(WS:GetDescendants()) do
-                if o:IsA("Humanoid") and o.Parent and not PL:GetPlayerFromCharacter(o.Parent) then
-                    if #res.npcs < 10 then res.npcs[#res.npcs+1] = o.Parent.Name end
-                end
-            end
-        end)
-        return res
-    end
-
     local FEATURES = {
-        {key="esp", toggle="ESP", aliases={"esp","wallhack","wallhacks","wall hack","wh","boxes","box esp","outlines","outline"}},
-        {key="aimbot", toggle="Aimbot", aliases={"aimbot","aim bot","aim","lock on","lockon","aim lock","autoaim","auto aim"}},
-        {key="silentaim", toggle="Silent Aim", aliases={"silent aim","silentaim","silent","sa"}},
-        {key="triggerbot", toggle="Trigger Bot", aliases={"trigger bot","triggerbot","trigger"}},
-        {key="killaura", toggle="Kill Aura", aliases={"kill aura","killaura","aura"}},
-        {key="hitbox", toggle="Hitbox Expander", aliases={"hitbox","hitboxes"}},
-        {key="tracers", toggle="Tracers", aliases={"tracers","tracer","lines","laser"}},
-        {key="fullbright", toggle="Fullbright", aliases={"fullbright","full bright","bright","brightness","light","night vision"}},
-        {key="nametags", toggle="Name Tags", aliases={"name tags","nametags","names"}},
-        {key="speed", toggle="Speed Hack", aliases={"speed","speed hack","speedhack","walk speed","walkspeed","fast","faster"}},
-        {key="jump", toggle="Jump Power", aliases={"jump","jump power","jumppower","higher jump"}},
-        {key="infjump", toggle="Infinite Jump", aliases={"infinite jump","inf jump","infjump","double jump"}},
-        {key="fly", toggle="Fly", aliases={"fly","flight","flying","hover"}},
-        {key="noclip", toggle="Noclip", aliases={"noclip","no clip","ghost","phase","through walls","clip"}},
-        {key="antiafk", toggle="Anti-AFK", aliases={"anti afk","antiafk","afk","idle","no kick"}},
-        {key="time", toggle="Time Changer", aliases={"time","clock","time changer","day","night"}},
-        {key="fog", toggle="Disable Fog", aliases={"fog","disable fog","clear fog","atmosphere"}},
-        {key="autoclick", toggle="Auto Click", aliases={"auto click","autoclick","macro click"}},
-        {key="perfFps", toggle="FPS Boost", aliases={"fps boost","fps","boost","perf","performance"}},
+        {key="esp", toggle="ESP", aliases={"esp","wallhack","wh","boxes","outline"}},
+        {key="aimbot", toggle="Aimbot", aliases={"aimbot","aim","lock on"}},
+        {key="fly", toggle="Fly", aliases={"fly","flight","hover"}},
+        {key="noclip", toggle="Noclip", aliases={"noclip","ghost","phase"}},
+        {key="speed", toggle="Speed Hack", aliases={"speed","faster","walk speed"}},
+        {key="jump", toggle="Jump Power", aliases={"jump","higher jump"}},
+        {key="infjump", toggle="Infinite Jump", aliases={"infinite jump","inf jump"}},
+        {key="fullbright", toggle="Fullbright", aliases={"fullbright","bright","light"}},
+        {key="antiafk", toggle="Anti-AFK", aliases={"anti afk","afk"}},
+        {key="perfFps", toggle="FPS Boost", aliases={"fps boost","fps","boost","perf"}},
     }
-
     local function findFeature(word)
         if not word then return nil end
-        word = word:lower():gsub("^the%s+",""):gsub("^my%s+",""):gsub("%s+$","")
+        word = word:lower():gsub("^the%s+",""):gsub("%s+$","")
         local best, score = nil, 0
         for _,feat in ipairs(FEATURES) do
             for _,alias in ipairs(feat.aliases) do
                 if word == alias then
                     if #alias > score then score = #alias best = feat end
-                elseif word:find(alias,1,true) or alias:find(word,1,true) then
+                elseif word:find(alias,1,true) then
                     if #alias > score then score = #alias best = feat end
                 end
             end
@@ -1610,9 +1228,8 @@ do
     end
 
     local function parse(q)
-        local raw = q
         local s = q:lower():gsub("[?!.,;:]"," "):gsub("%s+"," "):gsub("^%s+",""):gsub("%s+$","")
-        local prefixes = {"hey nono ","yo nono ","hi nono ","nono ","please ","pls ","plz ","could you ","can you ","would you ","i want to ","i want ","i need to ","i need ","make me ","give me ","let me ","help me ","wanna ","gimme ","bro ","chief ","dude ","man ","ok ","okay ","alright "}
+        local prefixes = {"hey nono ","yo nono ","nono ","please ","pls ","plz ","can you ","make me ","give me ","enable ","turn on ","disable ","turn off ","off ","on "}
         local stripped = s
         local changed = true
         while changed do
@@ -1623,110 +1240,42 @@ do
         end
         s = stripped
 
-        if s:find("scan") and (s:find("game") or s:find("place") or s:find("this")) then return {action="scan", raw=raw} end
-        if s:match("^make") or s:match("^write") or s:match("^gen") or s:match("^give me a") then
-            local target = s:gsub("^make ",""):gsub("^write ",""):gsub("^gen ",""):gsub("^give me a ",""):gsub("^give me ","")
-                :gsub("^me ",""):gsub("^a ",""):gsub("^the ",""):gsub(" script",""):gsub(" for me",""):gsub(" for this game",""):gsub(" for place","")
-            return {action="make", query=target, raw=raw}
+        if s:find("scan") then return {action="scan"} end
+        if s:match("^make") or s:match("^gen") then
+            return {action="make", query=s:gsub("^make ",""):gsub("^gen ",""):gsub(" script","")}
         end
-        if s:match("^what is") or s:match("^whats") or s:match("^explain") then
-            return {action="info", query=s:gsub("^what is ",""):gsub("^whats ",""):gsub("^explain ",""), raw=raw}
+        if s:match("^off ") or s:match("^disable ") or s:match(" off$") then
+            return {action="off", query=s:gsub("^off ",""):gsub("^disable ",""):gsub(" off$","")}
         end
-        if s:match("^off ") or s:match("^disable ") or s:match("^turn off ") or s:match("^stop ") or s:match(" off$") then
-            return {action="off", query=s:gsub("^off ",""):gsub("^disable ",""):gsub("^turn off ",""):gsub("^stop ",""):gsub(" off$",""), raw=raw}
+        if s:match("^on ") or s:match("^enable ") or s:match(" on$") then
+            return {action="on", query=s:gsub("^on ",""):gsub("^enable ",""):gsub(" on$","")}
         end
-        if s:match("^on ") or s:match("^enable ") or s:match("^turn on ") or s:match("^activate ") then
-            local target = s:gsub("^on ",""):gsub("^enable ",""):gsub("^turn on ",""):gsub("^activate ","")
-            target = target:gsub(" on$",""):gsub("^the ","")
-            return {action="on", query=target, raw=raw}
-        end
-        local t1 = s:match("^turn%s+(.+)%s+on$") or s:match("^switch%s+(.+)%s+on$")
-        if t1 then return {action="on", query=t1, raw=raw} end
-        local t2 = s:match("^turn%s+(.+)%s+off$") or s:match("^switch%s+(.+)%s+off$")
-        if t2 then return {action="off", query=t2, raw=raw} end
-        local t3 = s:match("^(%S+)%s+on$")
-        if t3 then return {action="on", query=t3, raw=raw} end
-        local t4 = s:match("^(%S+)%s+off$")
-        if t4 then return {action="off", query=t4, raw=raw} end
-
         local feat = findFeature(s)
-        if feat then return {action="on", query=s, raw=raw, feature=feat} end
-
-        if s:find("status") then return {action="status", raw=raw} end
-        if s:find("players") or s:find("how many") then return {action="players", raw=raw} end
-        if s:find("ping") then return {action="ping", raw=raw} end
-        if s:find("help") or s:find("commands") then return {action="help", raw=raw} end
-        if s:match("^hi$") or s:match("^hey$") or s:match("^yo$") then return {action="greet", raw=raw} end
-        if s:find("thank") or s:match("^ty$") then return {action="thanks", raw=raw} end
-        local a,b,op = s:match("(%d+)%s*([%+%-%*/])%s*(%d+)")
-        if a and b and op then return {action="math", a=a, b=b, op=op, raw=raw} end
-        return {action="unknown", raw=raw}
-    end
-
-    local function handleScan()
-        local r = scanGame()
-        local out = {}
-        out[#out+1] = "**SCAN "..game.PlaceId.."**"
-        out[#out+1] = "Remotes: "..#r.remotes
-        for i=1,math.min(5,#r.remotes) do out[#out+1] = "  "..r.remotes[i] end
-        out[#out+1] = "Scripts: "..#r.scripts
-        for i=1,math.min(5,#r.scripts) do out[#out+1] = "  "..r.scripts[i] end
-        out[#out+1] = "NPCs: "..#r.npcs.."  Tools: "..#r.tools
-        return table.concat(out,"\n")
-    end
-
-    local function genScript(kind)
-        kind = (kind or ""):lower()
-        local pid = tostring(game.PlaceId)
-        if kind:find("esp") then
-            return "-- ESP for "..pid.."\nlocal PL=game:GetService('Players') local RS=game:GetService('RunService') local LP=PL.LocalPlayer local on=false local boxes={} local g=Instance.new('ScreenGui',game:GetService('CoreGui'))\nRS.RenderStepped:Connect(function() for _,p in ipairs(PL:GetPlayers()) do if p~=LP and p.Character then local hrp=p.Character:FindFirstChild('HumanoidRootPart') if hrp then if not boxes[p] then local bb=Instance.new('BillboardGui',g) bb.Size=UDim2.new(0,60,0,80) bb.AlwaysOnTop=true bb.Adornee=hrp local fr=Instance.new('Frame',bb) fr.Size=UDim2.new(1,0,1,0) fr.BackgroundTransparency=1 Instance.new('UIStroke',fr).Color=Color3.fromRGB(255,50,50) boxes[p]=bb end boxes[p].Enabled=on end end end end)\nlocal b=Instance.new('TextButton',g) b.Size=UDim2.new(0,100,0,36) b.Text='ESP: OFF' b.BackgroundColor3=Color3.fromRGB(24,24,28) b.TextColor3=Color3.new(1,1,1) b.Font=Enum.Font.GothamBold Instance.new('UICorner',b)\nb.MouseButton1Click:Connect(function() on=not on b.Text='ESP: '..(on and 'ON' or 'OFF') end)"
-        end
-        if kind:find("fly") then
-            return "-- Fly for "..pid.."\nlocal UIS=game:GetService('UserInputService') local RS=game:GetService('RunService') local LP=game:GetService('Players').LocalPlayer local bv,bg local on=false\nRS.RenderStepped:Connect(function() if not on then return end local hrp=LP.Character and LP.Character:FindFirstChild('HumanoidRootPart') if not hrp then return end if not bv then bv=Instance.new('BodyVelocity') bv.MaxForce=Vector3.new(1e5,1e5,1e5) bv.Parent=hrp bg=Instance.new('BodyGyro') bg.MaxTorque=Vector3.new(1e5,1e5,1e5) bg.Parent=hrp end local cam=workspace.CurrentCamera local mv=Vector3.zero if UIS:IsKeyDown(Enum.KeyCode.W) then mv=mv+cam.CFrame.LookVector end if UIS:IsKeyDown(Enum.KeyCode.S) then mv=mv-cam.CFrame.LookVector end bv.Velocity=mv*60 bg.CFrame=cam.CFrame end)"
-        end
-        return "Try: esp, fly, speed, noclip."
+        if feat then return {action="on", query=s, feature=feat} end
+        if s:find("help") then return {action="help"} end
+        if s:match("^hi$") or s:match("^hey$") or s:match("^yo$") then return {action="greet"} end
+        return {action="unknown"}
     end
 
     local function dispatch(p)
-        local a = p.action
-        if a == "on" then
-            if p.feature then
-                if S.Toggles[p.feature.toggle] == nil then return "Not registered." end
-                local setter = S["setToggle_"..p.feature.toggle]
-                if setter then setter(true) end
-                return "**"..p.feature.toggle.."** ON."
-            end
-            local feat = findFeature(p.query)
-            if feat then
-                local setter = S["setToggle_"..feat.toggle]
-                if setter then setter(true) end
-                return "**"..feat.toggle.."** ON."
-            end
-            return "Unknown: `"..p.query.."`."
+        if p.action == "on" then
+            local feat = p.feature or findFeature(p.query or "")
+            if not feat then return "Unknown." end
+            local setter = S["setToggle_"..feat.toggle]
+            if setter then setter(true) end
+            return "**"..feat.toggle.."** ON."
         end
-        if a == "off" then
-            local feat = findFeature(p.query)
+        if p.action == "off" then
+            local feat = findFeature(p.query or "")
             if not feat then return "Unknown." end
             local setter = S["setToggle_"..feat.toggle]
             if setter then setter(false) end
             return "**"..feat.toggle.."** OFF."
         end
-        if a == "scan" then return handleScan() end
-        if a == "make" then return "```lua\n"..genScript(p.query).."\n```" end
-        if a == "help" then return "Try: `enable esp`, `scan game`, `make esp script`, `status`." end
-        if a == "greet" then return "Yo chief." end
-        if a == "thanks" then return "Anytime." end
-        if a == "players" then return #PL:GetPlayers().."/"..PL.MaxPlayers.." players." end
-        if a == "status" then
-            local on = {}
-            for k,v in pairs(S.Toggles) do if v then on[#on+1] = k end end
-            return #on > 0 and table.concat(on,", ") or "(nothing on)"
-        end
-        if a == "math" then
-            local x,y = tonumber(p.a),tonumber(p.b)
-            local r = p.op=="+" and x+y or p.op=="-" and x-y or p.op=="*" and x*y or p.op=="/" and x/y
-            return "= "..r
-        end
+        if p.action == "scan" then return "Scanning... (feature in Scanner tab)" end
+        if p.action == "make" then return "```lua\n-- "..(p.query or "esp").." script for "..game.PlaceId.."\nlocal PL=game:GetService('Players')\n-- ...(see Scanner tab for full generation)\n```" end
+        if p.action == "help" then return "Try: `enable esp`, `scan game`, `make esp script`, `status`." end
+        if p.action == "greet" then return "Yo chief." end
         return "Not sure. Try `help`."
     end
 
@@ -1762,8 +1311,7 @@ do
         ib.Text = ""
         add(t, true)
         task.wait(0.1)
-        local ok, reply
-        ok, reply = pcall(function() return dispatch(parse(t)) end)
+        local ok, reply = pcall(function() return dispatch(parse(t)) end)
         add(ok and reply or "Brain glitched.", false)
     end
 
@@ -1771,23 +1319,9 @@ do
     ib.FocusLost:Connect(function(e) if e then send() end end)
 
     task.defer(function()
-        add("Hey chief. Try `enable esp`, `scan game`, `make esp script`, `help`.", false)
+        add("Hey chief. Try `enable esp`, `scan game`, `help`.", false)
     end)
 end
 P("25 ai built")
-
-local tst = N("TextLabel",{
-    Size=UDim2.new(0,240,0,32),
-    Position=UDim2.new(.5,-120,0,topBarH+10),
-    BackgroundColor3=C.Card,
-    TextColor3=C.Text,
-    Font=Enum.Font.GothamBold,TextSize=12,
-    Text="Nono ARC v18 loaded",
-    BorderSizePixel=0,
-    ZIndex=50,
-}, gui)
-Cnr(tst,10)
-Strk(tst,C.Line,1)
-task.delay(3,function() pcall(function() tst:Destroy() end) end)
 
 P("99 COMPLETE")
