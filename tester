@@ -1,4 +1,4 @@
--- NONO ARC v16 - mobile tabs + smart AI + UI settings
+-- NONO ARC v17 - topbar fix, tabs always visible, perf-tuned
 local function P(m) print("[NONO] "..m) end
 P("01 boot")
 
@@ -105,8 +105,7 @@ end
 
 local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
--- mobile now keeps wider sidebar so labels show
-local sideW = isMobile and 110 or 190
+local sideW = isMobile and 118 or 190
 local winW = math.min(isMobile and (vp.X - 16) or 900, vp.X - 16)
 local winH = math.min(isMobile and (vp.Y - 40) or 620, vp.Y - 40)
 P("05 size "..winW.."x"..winH.." mobile="..tostring(isMobile))
@@ -150,62 +149,29 @@ do
 end
 P("08 drag")
 
-local topBarH = 40
+-- TOP BAR: no more overlap, sidebar starts BELOW it
+local topBarH = 46
 local TopBar = N("Frame",{
     Size=UDim2.new(1,0,0,topBarH),
-    BackgroundColor3=C.BG,
+    BackgroundColor3=C.Side,
     BorderSizePixel=0,
     ZIndex=10,
 }, W)
 Cnr(TopBar,14)
-N("Frame",{Size=UDim2.new(1,0,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=C.BG,BorderSizePixel=0,ZIndex=10},TopBar)
-
--- top bar buttons (right side): settings, theme, close
-local closeBtn = N("TextButton",{
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-36,0,5),
+-- bottom strip to square off topbar bottom corners
+N("Frame",{
+    Size=UDim2.new(1,0,0,14),
+    Position=UDim2.new(0,0,1,-14),
     BackgroundColor3=C.Side,
-    Text="",
     BorderSizePixel=0,
-    AutoButtonColor=false,
-},TopBar)
-Cnr(closeBtn,8)
-Strk(closeBtn,C.Line,1)
-local cih = N("Frame",{Size=UDim2.new(0,12,0,12),Position=UDim2.new(0.5,-6,0.5,-6),BackgroundTransparency=1},closeBtn)
-drawIcon(cih, "close", 12, C.Dim)
-closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+    ZIndex=10,
+}, TopBar)
 
-local themeBtn = N("TextButton",{
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-70,0,5),
-    BackgroundColor3=C.Side,
-    Text="🎨",
-    TextColor3=C.Text,
-    TextSize=14,
-    BorderSizePixel=0,
-    AutoButtonColor=false,
-},TopBar)
-Cnr(themeBtn,8)
-Strk(themeBtn,C.Line,1)
-
-local settingsBtn = N("TextButton",{
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-104,0,5),
-    BackgroundColor3=C.Side,
-    Text="⚙",
-    TextColor3=C.Text,
-    TextSize=14,
-    BorderSizePixel=0,
-    AutoButtonColor=false,
-},TopBar)
-Cnr(settingsBtn,8)
-Strk(settingsBtn,C.Line,1)
-
--- search
+-- search bar (left of topbar)
 local searchBar = N("Frame",{
-    Size=UDim2.new(0,isMobile and 140 or 220,0,30),
-    Position=UDim2.new(0,10,0,5),
-    BackgroundColor3=C.Side,
+    Size=UDim2.new(0,isMobile and 130 or 210,0,30),
+    Position=UDim2.new(0,10,0,8),
+    BackgroundColor3=C.BG,
     BorderSizePixel=0,
 },TopBar)
 Cnr(searchBar,8)
@@ -224,9 +190,50 @@ local sBox = N("TextBox",{
     TextXAlignment=Enum.TextXAlignment.Left,
     ClearTextOnFocus=false,
 },searchBar)
+
+-- top-right buttons
+local closeBtn = N("TextButton",{
+    Size=UDim2.new(0,30,0,30),
+    Position=UDim2.new(1,-40,0,8),
+    BackgroundColor3=C.BG,
+    Text="",
+    BorderSizePixel=0,
+    AutoButtonColor=false,
+},TopBar)
+Cnr(closeBtn,8)
+Strk(closeBtn,C.Line,1)
+local cih = N("Frame",{Size=UDim2.new(0,12,0,12),Position=UDim2.new(0.5,-6,0.5,-6),BackgroundTransparency=1},closeBtn)
+drawIcon(cih, "close", 12, C.Dim)
+closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+
+local themeBtn = N("TextButton",{
+    Size=UDim2.new(0,30,0,30),
+    Position=UDim2.new(1,-76,0,8),
+    BackgroundColor3=C.BG,
+    Text="🎨",
+    TextColor3=C.Text,
+    TextSize=14,
+    BorderSizePixel=0,
+    AutoButtonColor=false,
+},TopBar)
+Cnr(themeBtn,8)
+Strk(themeBtn,C.Line,1)
+
+local settingsBtn = N("TextButton",{
+    Size=UDim2.new(0,30,0,30),
+    Position=UDim2.new(1,-112,0,8),
+    BackgroundColor3=C.BG,
+    Text="⚙",
+    TextColor3=C.Text,
+    TextSize=14,
+    BorderSizePixel=0,
+    AutoButtonColor=false,
+},TopBar)
+Cnr(settingsBtn,8)
+Strk(settingsBtn,C.Line,1)
 P("09 topbar")
 
--- SIDEBAR always shows labels now
+-- SIDEBAR: starts BELOW topbar, no overlap
 local SB = N("Frame",{
     Size=UDim2.new(0,sideW,1,-topBarH),
     Position=UDim2.new(0,0,0,topBarH),
@@ -234,18 +241,30 @@ local SB = N("Frame",{
     BorderSizePixel=0,
 }, W)
 Cnr(SB,14)
+-- square the bottom-left, top-right of sidebar
 N("Frame",{Size=UDim2.new(0,14,1,0),Position=UDim2.new(1,-14,0,0),BackgroundColor3=C.Side,BorderSizePixel=0},SB)
 N("Frame",{Size=UDim2.new(0,14,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=C.Side,BorderSizePixel=0},SB)
+-- divider
 N("Frame",{Size=UDim2.new(0,1,1,-24),Position=UDim2.new(1,-1,0,12),BackgroundColor3=C.Line,BorderSizePixel=0},SB)
 
--- logo
-local Lg = N("Frame",{Size=UDim2.new(1,-20,0,48),Position=UDim2.new(0,10,0,12),BackgroundTransparency=1},SB)
-local LgI = N("Frame",{Size=UDim2.new(0,34,0,34),Position=UDim2.new(0,2,0,7),BackgroundColor3=C.Accent,BorderSizePixel=0},Lg)
-Cnr(LgI,10)
-N("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text="N",TextColor3=C.BG,Font=Enum.Font.GothamBlack,TextSize=17},LgI)
-N("TextLabel",{Size=UDim2.new(1,-46,0,16),Position=UDim2.new(0,44,0,6),BackgroundTransparency=1,Text="NONO",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left},Lg)
-N("TextLabel",{Size=UDim2.new(1,-46,0,12),Position=UDim2.new(0,44,0,22),BackgroundTransparency=1,Text="UNIVERSAL AI",TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},Lg)
+-- logo (compact for mobile)
+local Lg
+local LgI
+if isMobile then
+    Lg = N("Frame",{Size=UDim2.new(1,-16,0,36),Position=UDim2.new(0,8,0,8),BackgroundTransparency=1},SB)
+    LgI = N("Frame",{Size=UDim2.new(0,30,0,30),Position=UDim2.new(.5,-15,0,2),BackgroundColor3=C.Accent,BorderSizePixel=0},Lg)
+    Cnr(LgI,8)
+    N("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text="N",TextColor3=C.BG,Font=Enum.Font.GothamBlack,TextSize=15},LgI)
+else
+    Lg = N("Frame",{Size=UDim2.new(1,-20,0,44),Position=UDim2.new(0,10,0,10),BackgroundTransparency=1},SB)
+    LgI = N("Frame",{Size=UDim2.new(0,32,0,32),Position=UDim2.new(0,2,0,6),BackgroundColor3=C.Accent,BorderSizePixel=0},Lg)
+    Cnr(LgI,10)
+    N("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text="N",TextColor3=C.BG,Font=Enum.Font.GothamBlack,TextSize=17},LgI)
+    N("TextLabel",{Size=UDim2.new(1,-42,0,16),Position=UDim2.new(0,40,0,4),BackgroundTransparency=1,Text="NONO",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left},Lg)
+    N("TextLabel",{Size=UDim2.new(1,-42,0,12),Position=UDim2.new(0,40,0,22),BackgroundTransparency=1,Text="UNIVERSAL AI",TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},Lg)
+end
 
+-- ═══ NAV with proper spacing — TABS ALWAYS VISIBLE ═══
 local navs = {
     {name="Home",     icon="🏠"},
     {name="Combat",   icon="⚔"},
@@ -259,48 +278,52 @@ local navs = {
     {name="Settings", icon="⚙"},
 }
 
-local navTop = 68
-local navBottom = 10
-local availH = winH - topBarH - navTop - navBottom
-local btnGap = 2
-local btnH = math.floor((availH - btnGap*(#navs-1)) / #navs)
-btnH = math.clamp(btnH, 30, 40)
-P("10 nav btnH="..btnH)
-
+-- nav container spans the sidebar from below logo to bottom, with padding
+local navTop = isMobile and 50 or 62
+local navBottom = 8
 local navHold = N("Frame",{
-    Size=UDim2.new(1,-16,1,-navTop-navBottom),
-    Position=UDim2.new(0,8,navTop,0),
+    Size=UDim2.new(1,isMobile and -12 or -16,1,-navTop-navBottom),
+    Position=UDim2.new(0,isMobile and 6 or 8,navTop,0),
     BackgroundTransparency=1,
 },SB)
-N("UIListLayout",{Padding=UDim.new(0,btnGap)},navHold)
+N("UIListLayout",{Padding=UDim.new(0,3),SortOrder=Enum.SortOrder.LayoutOrder},navHold)
+
+local navAvail = (winH - topBarH) - navTop - navBottom
+local btnH = math.floor((navAvail - 3*(#navs-1)) / #navs)
+btnH = math.clamp(btnH, 26, 36)
+P("10 nav btnH="..btnH)
 
 local nBtns, frames = {}, {}
-local btnW = UDim2.new(1,0,0,btnH)
 
 for i,entry in ipairs(navs) do
     local name, icon = entry.name, entry.icon
     local b = N("TextButton",{
-        Size=btnW,
+        Size=UDim2.new(1,0,0,btnH),
         BackgroundColor3=C.Side,
         Text="",
         BorderSizePixel=0,
         LayoutOrder=i,
         AutoButtonColor=false,
+        ClipsDescendants=true,
     },navHold)
-    Cnr(b,10)
+    Cnr(b,8)
     local ic = N("TextLabel",{
-        Size=UDim2.new(0,28,1,0),
-        Position=UDim2.new(0,8,0,0),
+        Size=UDim2.new(0,26,1,0),
+        Position=UDim2.new(0,6,0,0),
         BackgroundTransparency=1,
         Text=icon,
         TextColor3=C.Dim,
         Font=Enum.Font.GothamBold,
-        TextSize=isMobile and 14 or 13,
+        TextSize=isMobile and 12 or 13,
     },b)
     local lb = N("TextLabel",{
-        Size=UDim2.new(1,-40,1,0),Position=UDim2.new(0,40,0,0),
-        BackgroundTransparency=1,Text=name,TextColor3=C.Dim,
-        Font=Enum.Font.GothamMedium,TextSize=isMobile and 11 or 12,
+        Size=UDim2.new(1,-34,1,0),
+        Position=UDim2.new(0,34,0,0),
+        BackgroundTransparency=1,
+        Text=name,
+        TextColor3=C.Dim,
+        Font=Enum.Font.GothamMedium,
+        TextSize=isMobile and 10 or 12,
         TextXAlignment=Enum.TextXAlignment.Left,
         TextTruncate=Enum.TextTruncate.AtEnd,
     },b)
@@ -348,6 +371,7 @@ nBtns.Home.lb.TextColor3 = C.Text
 frames.Home.Visible = true
 P("11 nav built")
 
+-- ═══ PERF: single throttled heartbeat handles callbacks ═══
 local pendingCallbacks = {}
 local callbackBudget = 0
 RS.Heartbeat:Connect(function(dt)
@@ -480,7 +504,7 @@ do
 
     local ringSize = isMobile and 66 or 82
     local ringHolder = N("Frame",{Size=UDim2.new(0,ringSize,0,ringSize),Position=UDim2.new(0,isMobile and 14 or 20,0,isMobile and 24 or 28),BackgroundTransparency=1},pc)
-    local tickCount = 36
+    local tickCount = 28
     local ticks = {}
     for i=1,tickCount do
         local a = (i-1)/tickCount*math.pi*2 - math.pi/2
@@ -503,6 +527,7 @@ do
     local pingVal = N("TextLabel",{Size=UDim2.new(0,140,0,30),Position=UDim2.new(0,pingX,0,isMobile and 38 or 46),BackgroundTransparency=1,Text="-- ms",TextColor3=C.Text,Font=Enum.Font.GothamBlack,TextSize=isMobile and 20 or 26,TextXAlignment=Enum.TextXAlignment.Left},pc)
     N("TextLabel",{Size=UDim2.new(0,140,0,14),Position=UDim2.new(0,pingX,0,isMobile and 68 or 80),BackgroundTransparency=1,Text="ping",TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Left},pc)
 
+    -- PERF: throttle to 0.5s, cheap update
     local ff, ft = 0, 0
     RS.RenderStepped:Connect(function(dt)
         ff = ff + 1
@@ -519,17 +544,17 @@ do
             ff, ft = 0, 0
         end
     end)
+
     task.spawn(function()
         while gui.Parent do
             pcall(function()
                 local p = ST.Network.ServerStatsItem["Data Ping"]
                 if p then pingVal.Text = math.floor(p:GetValue()).." ms" end
             end)
-            task.wait(1.5)
+            task.wait(2)
         end
     end)
 
-    -- SERVER CARD with FIXED timer
     local serverH = isMobile and 80 or 96
     local sc = N("Frame",{Size=UDim2.new(1,0,0,serverH),BackgroundColor3=C.Card,BorderSizePixel=0},f)
     Cnr(sc,12) Strk(sc,C.Line,1)
@@ -548,9 +573,6 @@ do
     local pingChip = makeChip("📡 --")
     local timeChip = makeChip("⏱ --:--")
 
-    -- FIX: store server session start time properly
-    local sessionStart = os.clock()
-
     task.spawn(function()
         while gui.Parent do
             pcall(function() playersChip.label.Text = "👥 "..#PL:GetPlayers().."/"..PL.MaxPlayers end)
@@ -559,9 +581,9 @@ do
                 if p then pingChip.label.Text = "📡 "..math.floor(p:GetValue()).."ms" end
             end)
             pcall(function()
-                local now = os.date("*t")
-                local hh = string.format("%02d", now.hour)
-                local mm = string.format("%02d", now.min)
+                local t = os.date("*t")
+                local hh = string.format("%02d", t.hour or 0)
+                local mm = string.format("%02d", t.min or 0)
                 timeChip.label.Text = "⏱ "..hh..":"..mm
             end)
             task.wait(1)
@@ -631,6 +653,7 @@ do
         end)
         stripChips[n] = {bg=c, dot=dot, lbl=lbl}
     end
+    -- PERF: strip diff-check every 0.5s
     task.spawn(function()
         local last = {}
         while gui.Parent do
@@ -645,7 +668,7 @@ do
                     end)
                 end
             end
-            task.wait(0.35)
+            task.wait(0.5)
         end
     end)
 end
@@ -737,7 +760,7 @@ do
                             if obj:IsA("ParticleEmitter") or obj:IsA("Trail") then obj.Enabled = false end
                         end
                     end)
-                    task.wait(2)
+                    task.wait(3)
                 end
             end)
         end
@@ -851,9 +874,7 @@ do local f=frames.Settings
 end
 P("21 settings")
 
--- ═══════════════════════════════════════════
--- THEME PANEL (floating beside main window)
--- ═══════════════════════════════════════════
+-- THEME PANEL
 local themeW = isMobile and 240 or 280
 local themeH = math.min(winH, isMobile and 400 or 560)
 local themePanel = N("Frame",{
@@ -933,7 +954,7 @@ for _,p in ipairs(themePresets) do
         C.Card = p.card
         C.CardHi = Color3.fromRGB(math.min(255,p.card.R+12), math.min(255,p.card.G+12), math.min(255,p.card.B+12))
         TW:Create(W, TweenInfo.new(0.35), {BackgroundColor3 = C.BG}):Play()
-        TW:Create(TopBar, TweenInfo.new(0.35), {BackgroundColor3 = C.BG}):Play()
+        TW:Create(TopBar, TweenInfo.new(0.35), {BackgroundColor3 = C.Side}):Play()
         TW:Create(SB, TweenInfo.new(0.35), {BackgroundColor3 = C.Side}):Play()
         TW:Create(themePanel, TweenInfo.new(0.35), {BackgroundColor3 = C.Side}):Play()
     end)
@@ -1011,138 +1032,13 @@ makeColorSlider("B", function() return rgb.B end, function(v) rgb.B = v applyAcc
 hexBox = N("TextLabel",{Size=UDim2.new(1,0,0,30),BackgroundColor3=C.CardHi,Text="#FFFFFF",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=11,BorderSizePixel=0},themeScroll)
 Cnr(hexBox,8)
 
-N("TextLabel",{Size=UDim2.new(1,0,0,12),BackgroundTransparency=1,Text="EFFECTS",TextColor3=C.Dim,Font=Enum.Font.GothamBold,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},themeScroll)
-
-local effectsCard = N("Frame",{Size=UDim2.new(1,0,0,240),BackgroundColor3=C.Card,BorderSizePixel=0},themeScroll)
-Cnr(effectsCard,10)
-Strk(effectsCard,C.Line,1)
-N("UIListLayout",{Padding=UDim.new(0,6)},effectsCard)
-Pad(effectsCard,8,8,8,8)
-
-local function effectToggle(name, cb)
-    local row = N("Frame",{Size=UDim2.new(1,-16,0,32),BackgroundColor3=C.CardHi,BorderSizePixel=0},effectsCard)
-    Cnr(row,8)
-    N("TextLabel",{Size=UDim2.new(1,-60,1,0),Position=UDim2.new(0,12,0,0),BackgroundTransparency=1,Text=name,TextColor3=C.Text,Font=Enum.Font.Gotham,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left},row)
-    local track = N("Frame",{Size=UDim2.new(0,40,0,22),Position=UDim2.new(1,-50,0.5,-11),BackgroundColor3=C.Line,BorderSizePixel=0},row)
-    Cnr(track,11)
-    local knob = N("Frame",{Size=UDim2.new(0,16,0,16),Position=UDim2.new(0,3,0.5,-8),BackgroundColor3=C.Text,BorderSizePixel=0},track)
-    Cnr(knob,8)
-    local btn = N("TextButton",{Size=UDim2.new(0,40,0,22),Position=UDim2.new(1,-50,0.5,-11),BackgroundTransparency=1,Text="",BorderSizePixel=0},row)
-    local on = false
-    local function render()
-        TW:Create(track, TweenInfo.new(0.18), {BackgroundColor3 = on and S.Accent or C.Line}):Play()
-        TW:Create(knob, TweenInfo.new(0.18), {
-            Position = on and UDim2.new(1,-19,0.5,-8) or UDim2.new(0,3,0.5,-8),
-            BackgroundColor3 = on and C.BG or C.Text
-        }):Play()
-    end
-    btn.MouseButton1Click:Connect(function()
-        on = not on
-        render()
-        if cb then pcall(cb, on) end
-    end)
-end
-
-effectToggle("Glow (players)", function(on)
-    S.Effects.glow = on
-    if on then
-        task.spawn(function()
-            while S.Effects.glow and gui.Parent do
-                for _,p in ipairs(PL:GetPlayers()) do
-                    if p.Character and p ~= LP then
-                        local hl = p.Character:FindFirstChild("NonoGlow") or Instance.new("Highlight", p.Character)
-                        hl.Name = "NonoGlow"
-                        hl.FillColor = S.Accent
-                        hl.FillTransparency = 0.5
-                        hl.OutlineColor = S.Accent
-                        hl.Adornee = p.Character
-                    end
-                end
-                task.wait(1)
-            end
-        end)
-    else
-        for _,p in ipairs(PL:GetPlayers()) do
-            if p.Character then
-                local hl = p.Character:FindFirstChild("NonoGlow")
-                if hl then hl:Destroy() end
-            end
-        end
-    end
-end)
-
-effectToggle("Self Glow", function(on)
-    S.Effects.selfGlow = on
-    if on and LP.Character then
-        local hl = LP.Character:FindFirstChild("NonoSelfGlow") or Instance.new("Highlight", LP.Character)
-        hl.Name = "NonoSelfGlow"
-        hl.FillColor = S.Accent
-        hl.FillTransparency = 0.6
-        hl.OutlineColor = S.Accent
-    else
-        if LP.Character then
-            local hl = LP.Character:FindFirstChild("NonoSelfGlow")
-            if hl then hl:Destroy() end
-        end
-    end
-end)
-
-effectToggle("Rainbow Accent", function(on)
-    S.Effects.rainbow = on
-    if on then
-        task.spawn(function()
-            local hue = 0
-            while S.Effects.rainbow and gui.Parent do
-                hue = (hue + 0.005) % 1
-                local col = Color3.fromHSV(hue, 0.8, 1)
-                S.Accent = col
-                pcall(function()
-                    hexBox.Text = string.format("#%02X%02X%02X", math.floor(col.R*255), math.floor(col.G*255), math.floor(col.B*255))
-                end)
-                task.wait(0.05)
-            end
-        end)
-    else
-        S.Accent = Color3.fromRGB(rgb.R, rgb.G, rgb.B)
-    end
-end)
-
-effectToggle("Rainbow Trail", function(on)
-    S.Effects.trail = on
-    if on and LP.Character then
-        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local att0 = hrp:FindFirstChild("NonoTrailA") or Instance.new("Attachment", hrp)
-            att0.Name = "NonoTrailA"
-            local att1 = hrp:FindFirstChild("NonoTrailB") or Instance.new("Attachment", hrp)
-            att1.Name = "NonoTrailB"
-            att1.Position = Vector3.new(0, 2, 0)
-            local tr = hrp:FindFirstChild("NonoTrail") or Instance.new("Trail", hrp)
-            tr.Name = "NonoTrail"
-            tr.Attachment0 = att0
-            tr.Attachment1 = att1
-            tr.Lifetime = 0.5
-            tr.Color = ColorSequence.new(S.Accent)
-        end
-    elseif LP.Character then
-        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local tr = hrp:FindFirstChild("NonoTrail") if tr then tr:Destroy() end
-            local a0 = hrp:FindFirstChild("NonoTrailA") if a0 then a0:Destroy() end
-            local a1 = hrp:FindFirstChild("NonoTrailB") if a1 then a1:Destroy() end
-        end
-    end
-end)
-
 themeBtn.MouseButton1Click:Connect(function()
     themePanel.Visible = not themePanel.Visible
     if settingsPanel then settingsPanel.Visible = false end
 end)
 P("22 theme panel")
 
--- ═══════════════════════════════════════════
--- UI SETTINGS PANEL (snow, glow, shadows, size)
--- ═══════════════════════════════════════════
+-- UI SETTINGS PANEL
 local settingsW = isMobile and 240 or 280
 local settingsH = math.min(winH, isMobile and 420 or 480)
 local settingsPanel = N("Frame",{
@@ -1193,12 +1089,11 @@ N("UIListLayout",{Padding=UDim.new(0,8)},setScroll)
 N("TextLabel",{Size=UDim2.new(1,0,0,18),BackgroundTransparency=1,Text="⚙ UI SETTINGS",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left},setScroll)
 N("TextLabel",{Size=UDim2.new(1,0,0,14),BackgroundTransparency=1,Text="Size, effects, shadows",TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Left},setScroll)
 
--- UI Size slider
 local function makeSlider(parent, label, min, max, def, onChange)
     local card = N("Frame",{Size=UDim2.new(1,0,0,48),BackgroundColor3=C.Card,BorderSizePixel=0},parent)
     Cnr(card,10)
     N("TextLabel",{Size=UDim2.new(1,-80,0,16),Position=UDim2.new(0,14,0,8),BackgroundTransparency=1,Text=label,TextColor3=C.Text,Font=Enum.Font.Gotham,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left},card)
-    local valLbl = N("TextLabel",{Size=UDim2.new(0,50,0,16),Position=UDim2.new(1,-60,0,8),BackgroundTransparency=1,Text=tostring(def),TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=11,TextXAlignment=Enum.TextXAlignment.Right},card)
+    local valLbl = N("TextLabel",{Size=UDim2.new(0,50,0,16),Position=UDim2.new(1,-60,0,8),BackgroundTransparency=1,Text=string.format("%.1f",def),TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=11,TextXAlignment=Enum.TextXAlignment.Right},card)
     local track = N("Frame",{Size=UDim2.new(1,-28,0,6),Position=UDim2.new(0,14,0,30),BackgroundColor3=C.Line,BorderSizePixel=0},card)
     Cnr(track,3)
     local pct = (def - min) / (max - min)
@@ -1242,26 +1137,22 @@ local function makeSlider(parent, label, min, max, def, onChange)
     return card
 end
 
+local baseWinW = winW
+local baseWinH = winH
+
 makeSlider(setScroll, "UI Size", 0.5, 1.5, 1.0, function(v)
-    S.UISettings.sizeMul = v
-    local newW = math.min(winW * v / S.UISettings.sizeMul * v, vp.X - 16)
-    -- resize relative to base
-    local baseW = math.min(isMobile and (vp.X - 16) or 900, vp.X - 16)
-    local baseH = math.min(isMobile and (vp.Y - 40) or 620, vp.Y - 40)
-    W.Size = UDim2.new(0, baseW * v, 0, baseH * v)
-    W.Position = UDim2.new(.5, -(baseW * v)/2, .5, -(baseH * v)/2)
+    local newW = baseWinW * v
+    local newH = baseWinH * v
+    W.Size = UDim2.new(0, newW, 0, newH)
+    W.Position = UDim2.new(.5, -newW/2, .5, -newH/2)
 end)
 
 makeSlider(setScroll, "Opacity", 0.3, 1.0, 1.0, function(v)
-    S.UISettings.opacity = v
     W.BackgroundTransparency = 1 - v
     TopBar.BackgroundTransparency = 1 - v
     SB.BackgroundTransparency = 1 - v
-    if themePanel then themePanel.BackgroundTransparency = 1 - v end
-    if settingsPanel then settingsPanel.BackgroundTransparency = 1 - v end
 end)
 
--- Effect toggles
 N("TextLabel",{Size=UDim2.new(1,0,0,12),BackgroundTransparency=1,Text="UI EFFECTS",TextColor3=C.Dim,Font=Enum.Font.GothamBold,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left},setScroll)
 
 local function uiEffectToggle(name, cb)
@@ -1297,11 +1188,10 @@ uiEffectToggle("UI Snow", function(on)
         overlay.Size = UDim2.new(1,0,1,0)
         overlay.BackgroundTransparency = 1
         overlay.ZIndex = 100
-        -- snowflakes as small white frames
         task.spawn(function()
             local flakes = {}
-            for i=1,40 do
-                local flake = N("TextLabel",{
+            for i=1,25 do
+                local flake = N("Frame",{
                     Size=UDim2.new(0,4,0,4),
                     Position=UDim2.new(math.random(),0,math.random(),0),
                     BackgroundColor3=Color3.new(1,1,1),
@@ -1309,17 +1199,19 @@ uiEffectToggle("UI Snow", function(on)
                     ZIndex=100,
                 }, overlay)
                 Cnr(flake,2)
-                flakes[i] = {f=flake, speed=math.random(20,60)/1000, xOff=math.random()}
+                flakes[i] = {f=flake, speed=math.random(20,60)/1000}
             end
             while S.UISettings.uiSnow and gui.Parent do
                 for _,d in ipairs(flakes) do
                     local p = d.f.Position
                     local newY = p.Y.Scale + d.speed
-                    if newY > 1 then newY = -0.02 newY = newY d.f.Position = UDim2.new(math.random(),0,newY,0) else
+                    if newY > 1 then
+                        d.f.Position = UDim2.new(math.random(),0,-0.02,0)
+                    else
                         d.f.Position = UDim2.new(p.X.Scale,0,newY,0)
                     end
                 end
-                task.wait(0.03)
+                task.wait(0.05)
             end
         end)
     elseif not on and existing then
@@ -1331,23 +1223,20 @@ uiEffectToggle("UI Glow", function(on)
     S.UISettings.uiGlow = on
     if on then
         task.spawn(function()
+            local hue = 0
             while S.UISettings.uiGlow and gui.Parent do
-                local hue = 0
-                while S.UISettings.uiGlow and gui.Parent do
-                    hue = (hue + 0.01) % 1
-                    local col = Color3.fromHSV(hue, 0.7, 1)
-                    pcall(function()
-                        WStroke.Color = col
-                        WStroke.Thickness = 2
-                    end)
-                    task.wait(0.05)
-                end
+                hue = (hue + 0.01) % 1
+                local col = Color3.fromHSV(hue, 0.7, 1)
+                pcall(function()
+                    WStroke.Color = col
+                    WStroke.Thickness = 2
+                end)
+                task.wait(0.08)
             end
-        end)
-    else
-        pcall(function()
-            WStroke.Color = C.Line
-            WStroke.Thickness = 1
+            pcall(function()
+                WStroke.Color = C.Line
+                WStroke.Thickness = 1
+            end)
         end)
     end
 end)
@@ -1356,7 +1245,7 @@ uiEffectToggle("Window Shadow", function(on)
     S.UISettings.shadows = on
     local sh = gui:FindFirstChild("NonoShadow")
     if on and not sh then
-        local shadow = N("ImageLabel",{
+        N("ImageLabel",{
             Name = "NonoShadow",
             Size=UDim2.new(1,40,1,40),
             Position=UDim2.new(0,-20,0,-20),
@@ -1367,7 +1256,6 @@ uiEffectToggle("Window Shadow", function(on)
             ZIndex=0,
         }, gui)
         W.ZIndex = 2
-        sh = shadow
     elseif not on and sh then
         sh:Destroy()
     end
@@ -1384,7 +1272,7 @@ uiEffectToggle("UI Rain", function(on)
         overlay.ZIndex = 100
         task.spawn(function()
             local drops = {}
-            for i=1,30 do
+            for i=1,20 do
                 local drop = N("Frame",{
                     Size=UDim2.new(0,1,0,8),
                     Position=UDim2.new(math.random(),0,math.random(),0),
@@ -1399,11 +1287,13 @@ uiEffectToggle("UI Rain", function(on)
                 for _,d in ipairs(drops) do
                     local p = d.f.Position
                     local newY = p.Y.Scale + d.speed
-                    if newY > 1.05 then newY = -0.05 d.f.Position = UDim2.new(math.random(),0,newY,0) else
+                    if newY > 1.05 then
+                        d.f.Position = UDim2.new(math.random(),0,-0.05,0)
+                    else
                         d.f.Position = UDim2.new(p.X.Scale,0,newY,0)
                     end
                 end
-                task.wait(0.03)
+                task.wait(0.05)
             end
         end)
     elseif not on and existing then
@@ -1418,15 +1308,13 @@ uiEffectToggle("Pulse Logo", function(on)
             while S.UISettings.pulse and gui.Parent do
                 pcall(function()
                     TW:Create(LgI, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                        Size = UDim2.new(0, 40, 0, 40),
-                        Position = UDim2.new(0, -1, 0, 4)
+                        Size = UDim2.new(0, 38, 0, 38),
                     }):Play()
                 end)
                 task.wait(0.8)
                 pcall(function()
                     TW:Create(LgI, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                        Size = UDim2.new(0, 34, 0, 34),
-                        Position = UDim2.new(0, 2, 0, 7)
+                        Size = UDim2.new(0, 30, 0, 30),
                     }):Play()
                 end)
                 task.wait(0.8)
@@ -1441,7 +1329,6 @@ settingsBtn.MouseButton1Click:Connect(function()
 end)
 P("22b settings panel")
 
--- Search
 sBox.FocusLost:Connect(function()
     local q = sBox.Text:lower()
     sBox.Text = ""
@@ -1509,30 +1396,35 @@ end)
 
 local espF = N("Folder",{Name="NonoESP"},gui)
 local boxes = {}
-RS.RenderStepped:Connect(function()
-    if _G.espEnabled then
-        for _,plr in pairs(PL:GetPlayers()) do
-            if plr ~= LP and plr.Character then
-                local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    if not boxes[plr] then
-                        local b = Instance.new("BoxHandleAdornment")
-                        b.Name = plr.Name
-                        b.AlwaysOnTop = true
-                        b.ZIndex = 5
-                        b.Size = Vector3.new(2,2,1)
-                        b.Transparency = 0.5
-                        b.Color3 = C.Bad
-                        b.Parent = espF
-                        boxes[plr] = b
-                    end
-                    boxes[plr].Adornee = hrp
-                end
-            end
-        end
-    else
+-- PERF: ESP only updates 20x/s not 60
+local espAccum = 0
+RS.RenderStepped:Connect(function(dt)
+    if not _G.espEnabled then
         for _,b in pairs(boxes) do pcall(function() b:Destroy() end) end
         boxes = {}
+        return
+    end
+    espAccum = espAccum + dt
+    if espAccum < 0.05 then return end
+    espAccum = 0
+    for _,plr in pairs(PL:GetPlayers()) do
+        if plr ~= LP and plr.Character then
+            local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                if not boxes[plr] then
+                    local b = Instance.new("BoxHandleAdornment")
+                    b.Name = plr.Name
+                    b.AlwaysOnTop = true
+                    b.ZIndex = 5
+                    b.Size = Vector3.new(2,2,1)
+                    b.Transparency = 0.5
+                    b.Color3 = C.Bad
+                    b.Parent = espF
+                    boxes[plr] = b
+                end
+                boxes[plr].Adornee = hrp
+            end
+        end
     end
 end)
 
@@ -1549,16 +1441,14 @@ task.spawn(function()
 end)
 P("24 gameplay loops")
 
--- ═══════════════════════════════════════════
--- AI (SMARTER)
--- ═══════════════════════════════════════════
+-- AI
 do
     local f = frames.AI
     local wrapH = isMobile and 380 or 480
     local wrap = N("Frame",{Size=UDim2.new(1,0,0,wrapH),BackgroundColor3=C.Card,BorderSizePixel=0},f)
     Cnr(wrap,12) Strk(wrap,C.Line,1)
 
-    N("TextLabel",{Size=UDim2.new(1,-24,0,18),Position=UDim2.new(0,16,0,12),BackgroundTransparency=1,Text="🤖 NONO AI · smart",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left},wrap)
+    N("TextLabel",{Size=UDim2.new(1,-24,0,18),Position=UDim2.new(0,16,0,12),BackgroundTransparency=1,Text="🤖 NONO AI",TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left},wrap)
 
     local ms = N("ScrollingFrame",{
         Size=UDim2.new(1,-24,1,-104),Position=UDim2.new(0,12,0,36),
@@ -1589,7 +1479,6 @@ do
     },inputRow)
     Cnr(sb,10)
 
-    -- scanGame
     local function scanGame()
         local res = {remotes={},scripts={},values={},npcs={},tools={}}
         local function scanContainer(c, d)
@@ -1624,7 +1513,6 @@ do
         return res
     end
 
-    -- full FEATURES map
     local FEATURES = {
         {key="esp", toggle="ESP", aliases={"esp","wallhack","wallhacks","wall hack","wh","boxes","box esp","outlines","outline"}},
         {key="aimbot", toggle="Aimbot", aliases={"aimbot","aim bot","aim","lock on","lockon","aim lock","autoaim","auto aim"}},
@@ -1667,7 +1555,6 @@ do
         return best
     end
 
-    -- handle info/scan/make
     local function handleInfo(target)
         local kb = {
             esp="ESP draws colored boxes around every player through walls. Client-side only.",
@@ -1756,11 +1643,9 @@ do
         return "Don't know `"..kind.."`. Try: aimbot, esp, fly, speed, noclip, jump, fullbright, perf, teleport, remote, scan, collect."
     end
 
-    -- full parse with multiple action support
     local function parse(q)
         local raw = q
         local s = q:lower():gsub("[?!.,;:]"," "):gsub("%s+"," "):gsub("^%s+",""):gsub("%s+$","")
-        -- strip prefixes aggressively
         local prefixes = {"hey nono ","yo nono ","hi nono ","nono ","please ","pls ","plz ","could you ","can you ","would you ","i want to ","i want ","i need to ","i need ","make me ","give me ","let me ","help me ","wanna ","gimme ","bro ","chief ","dude ","man ","ok ","okay ","alright "}
         local stripped = s
         local changed = true
@@ -1789,7 +1674,6 @@ do
             target = target:gsub(" on$",""):gsub("^the ",""):gsub("^my ","")
             return {action="on", query=target, raw=raw}
         end
-        -- turn X on/off
         local t1 = s:match("^turn%s+(.+)%s+on$") or s:match("^switch%s+(.+)%s+on$")
         if t1 then return {action="on", query=t1, raw=raw} end
         local t2 = s:match("^turn%s+(.+)%s+off$") or s:match("^switch%s+(.+)%s+off$")
@@ -1799,7 +1683,6 @@ do
         local t4 = s:match("^(%S+)%s+off$")
         if t4 then return {action="off", query=t4, raw=raw} end
 
-        -- bare feature name → on
         local feat = findFeature(s)
         if feat then return {action="on", query=s, raw=raw, feature=feat} end
 
@@ -1813,7 +1696,6 @@ do
         if s:match("^hi$") or s:match("^hey$") or s:match("^yo$") or s:match("^sup$") or s:match("^hello$") then return {action="greet", raw=raw} end
         if s:find("thank") or s:match("^ty$") then return {action="thanks", raw=raw} end
         if s:find("stupid") or s:find("dumb") or s:find("useless") then return {action="insult", raw=raw} end
-        -- math
         local a,b,op = s:match("(%d+)%s*([%+%-%*/])%s*(%d+)")
         if a and b and op then return {action="math", a=a, b=b, op=op, raw=raw} end
         return {action="unknown", raw=raw}
@@ -1944,7 +1826,7 @@ do
     ib.FocusLost:Connect(function(e) if e then send() end end)
 
     task.defer(function()
-        add("Hey chief. I'm smarter now — try `enable esp`, `scan game`, `make esp script`, `what is noclip`, `status`, or `help`.", false)
+        add("Hey chief. Try `enable esp`, `scan game`, `make esp script`, `what is noclip`, `status`, or `help`.", false)
     end)
 end
 P("25 ai built")
@@ -1955,7 +1837,7 @@ local tst = N("TextLabel",{
     BackgroundColor3=C.Card,
     TextColor3=C.Text,
     Font=Enum.Font.GothamBold,TextSize=12,
-    Text="Nono ARC v16 loaded",
+    Text="Nono ARC v17 loaded",
     BorderSizePixel=0,
     ZIndex=50,
 }, gui)
