@@ -1,4 +1,4 @@
--- NONO ARC v23 - boolean arithmetic fixes
+-- NONO ARC v24 - topbar inside window, zero boolean arithmetic bugs
 local function P(m) print("[NONO] "..m) end
 P("01 boot")
 
@@ -45,16 +45,16 @@ local function Pad(p,t,b,l,r) return N("UIPadding",{PaddingTop=UDim.new(0,t or 0
 
 local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
-local sideW = isMobile and 130 or 178
+local sideW = isMobile and 128 or 175
 local winW = math.min(isMobile and (vp.X - 16) or 920, vp.X - 16)
-local winH = math.min(isMobile and (vp.Y - 90) or 580, vp.Y - 90)
-local topStripH = 44
-local topGap = 8
+local winH = math.min(isMobile and (vp.Y - 40) or 600, vp.Y - 40)
+local topBarH = 42
 P("03 "..winW.."x"..winH)
 
 local gui = N("ScreenGui",{Name="NonoARC", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling}, CG)
 if not gui then P("FAIL gui") return end
 
+-- shadow synced to window
 local shadow = N("ImageLabel",{
     Size = UDim2.new(0,0,0,0), Position = UDim2.new(0,0,0,0),
     BackgroundTransparency = 1,
@@ -64,131 +64,106 @@ local shadow = N("ImageLabel",{
 
 local W = N("Frame",{
     Size = UDim2.new(0,winW,0,winH),
-    Position = UDim2.new(.5,-winW/2,.5,-winH/2 + topStripH/2 + topGap/2),
+    Position = UDim2.new(.5,-winW/2,.5,-winH/2),
     BackgroundColor3 = C.BG,
     BorderSizePixel = 0, Active = true, ClipsDescendants = true, ZIndex = 2,
 }, gui)
 Cnr(W, 16)
 Strk(W, C.Line, 1)
 
-local TopStrip = N("Frame",{
-    Size = UDim2.new(0,winW,0,topStripH),
-    Position = UDim2.new(.5,-winW/2,0,0),
-    BackgroundColor3 = C.BG,
-    BorderSizePixel = 0, Active = true, ZIndex = 5,
-}, gui)
-Cnr(TopStrip, 14)
-Strk(TopStrip, C.Line, 1)
-
 RS.Heartbeat:Connect(function()
-    if shadow and W and TopStrip then
+    if shadow and W then
         pcall(function()
-            TopStrip.Position = UDim2.new(W.Position.X.Scale, W.Position.X.Offset, W.Position.Y.Scale, W.Position.Y.Offset - topStripH - topGap)
-            TopStrip.Size = UDim2.new(W.Size.X.Scale, W.Size.X.Offset, 0, topStripH)
             shadow.Position = UDim2.new(W.Position.X.Scale, W.Position.X.Offset - 14, W.Position.Y.Scale, W.Position.Y.Offset - 14)
             shadow.Size = UDim2.new(W.Size.X.Scale, W.Size.X.Offset + 28, W.Size.Y.Scale, W.Size.Y.Offset + 28)
         end)
     end
 end)
 
--- drag top strip
 do
-    local drag, ds, spW = false, nil, nil
-    TopStrip.InputBegan:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-            drag=true; ds=i.Position; spW=W.Position
-        end
-    end)
-    UIS.InputChanged:Connect(function(i)
-        if drag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
-            local d=i.Position-ds
-            W.Position = UDim2.new(spW.X.Scale, spW.X.Offset+d.X, spW.Y.Scale, spW.Y.Offset+d.Y)
-        end
-    end)
-    UIS.InputEnded:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end
-    end)
-end
-do
-    local drag, ds, spW = false, nil, nil
+    local drag, ds, sp = false, nil, nil
     W.InputBegan:Connect(function(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-            drag=true; ds=i.Position; spW=W.Position
+            drag=true; ds=i.Position; sp=W.Position
         end
     end)
     UIS.InputChanged:Connect(function(i)
         if drag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
             local d=i.Position-ds
-            W.Position = UDim2.new(spW.X.Scale, spW.X.Offset+d.X, spW.Y.Scale, spW.Y.Offset+d.Y)
+            W.Position = UDim2.new(sp.X.Scale, sp.X.Offset+d.X, sp.Y.Scale, sp.Y.Offset+d.Y)
         end
     end)
     UIS.InputEnded:Connect(function(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end
     end)
 end
-P("04 window+strip")
+P("04 window")
+
+-- TOP BAR (inside window at top)
+local TopBar = N("Frame",{
+    Size = UDim2.new(1,0,0,topBarH), Position = UDim2.new(0,0,0,0),
+    BackgroundColor3 = C.Side, BorderSizePixel = 0, ZIndex = 20,
+}, W)
+N("Frame",{Size=UDim2.new(1,0,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=C.Side,BorderSizePixel=0,ZIndex=20}, TopBar)
 
 N("TextLabel",{
-    Size = UDim2.new(0,120,1,0), Position = UDim2.new(0,16,0,0),
+    Size = UDim2.new(0,140,1,0), Position = UDim2.new(0,18,0,0),
     BackgroundTransparency=1, Text = "Home",
     TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 17,
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6,
-}, TopStrip)
+    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 21,
+}, TopBar)
 
 local searchBar = N("Frame",{
-    Size = UDim2.new(0, isMobile and 130 or 210, 0, 28),
-    Position = UDim2.new(0.5, isMobile and -65 or -105, 0.5, -14),
-    BackgroundColor3 = C.BG, BorderSizePixel = 0, ZIndex = 6,
-}, TopStrip)
+    Size = UDim2.new(0, isMobile and 140 or 230, 0, 28),
+    Position = UDim2.new(0.5, isMobile and -70 or -115, 0.5, -14),
+    BackgroundColor3 = C.BG, BorderSizePixel = 0, ZIndex = 21,
+}, TopBar)
 Cnr(searchBar, 8)
 Strk(searchBar, C.Line, 1)
-N("TextLabel",{Size=UDim2.new(0,14,0,14),Position=UDim2.new(0,8,0.5,-7),BackgroundTransparency=1,Text="🔎",TextSize=10,ZIndex=7}, searchBar)
+N("TextLabel",{Size=UDim2.new(0,14,0,14),Position=UDim2.new(0,8,0.5,-7),BackgroundTransparency=1,Text="🔎",TextSize=10,ZIndex=22}, searchBar)
 local sBox = N("TextBox",{
     Size = UDim2.new(1,-30,1,0), Position = UDim2.new(0,26,0,0),
     BackgroundTransparency = 1, Text = "",
     PlaceholderText = "Search settings", PlaceholderColor3 = C.Dim, TextColor3 = C.Text,
     Font = Enum.Font.Gotham, TextSize = 11,
-    TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, ZIndex = 7,
+    TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, ZIndex = 22,
 }, searchBar)
 N("TextLabel",{
     Size = UDim2.new(0,44,1,0), Position = UDim2.new(1,-46,0,0),
     BackgroundTransparency=1, Text = "ctrl+k",
     TextColor3 = C.Dim, Font = Enum.Font.Gotham, TextSize = 9,
-    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 7,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 22,
 }, searchBar)
 
 local closeBtn = N("TextButton",{
     Size = UDim2.new(0,26,0,26), Position = UDim2.new(1,-34,0.5,-13),
     BackgroundColor3 = C.BG, Text = "✕", TextColor3 = C.Text, TextSize = 11,
-    Font = Enum.Font.GothamBold, BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 6,
-}, TopStrip)
+    Font = Enum.Font.GothamBold, BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 21,
+}, TopBar)
 Cnr(closeBtn, 8); Strk(closeBtn, C.Line, 1)
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
 local themeBtn = N("TextButton",{
     Size = UDim2.new(0,26,0,26), Position = UDim2.new(1,-66,0.5,-13),
     BackgroundColor3 = C.BG, Text = "🎨", TextColor3 = C.Text, TextSize = 12,
-    BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 6,
-}, TopStrip)
+    BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 21,
+}, TopBar)
 Cnr(themeBtn, 8); Strk(themeBtn, C.Line, 1)
 
 local settingsBtn = N("TextButton",{
     Size = UDim2.new(0,26,0,26), Position = UDim2.new(1,-98,0.5,-13),
     BackgroundColor3 = C.BG, Text = "⚙", TextColor3 = C.Text, TextSize = 12,
-    BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 6,
-}, TopStrip)
+    BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 21,
+}, TopBar)
 Cnr(settingsBtn, 8); Strk(settingsBtn, C.Line, 1)
-P("05 top content")
+P("05 topbar")
 
+-- SIDEBAR
 local SB = N("Frame",{
-    Size = UDim2.new(0,sideW,1,0), Position = UDim2.new(0,0,0,0),
+    Size = UDim2.new(0,sideW,1,-topBarH), Position = UDim2.new(0,0,0,topBarH),
     BackgroundColor3 = C.Side, BorderSizePixel = 0, ZIndex = 10,
 }, W)
-Cnr(SB,16)
-N("Frame",{Size=UDim2.new(0,14,1,0),Position=UDim2.new(1,-14,0,0),BackgroundColor3=C.Side,BorderSizePixel=0,ZIndex=10}, SB)
-N("Frame",{Size=UDim2.new(0,14,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=C.Side,BorderSizePixel=0,ZIndex=10}, SB)
-N("Frame",{Size=UDim2.new(0,14,0,14),Position=UDim2.new(0,0,0,0),BackgroundColor3=C.Side,BorderSizePixel=0,ZIndex=10}, SB)
-N("Frame",{Size=UDim2.new(0,1,1,-24),Position=UDim2.new(1,-1,0,12),BackgroundColor3=C.Line,BorderSizePixel=0,ZIndex=11}, SB)
+N("Frame",{Size=UDim2.new(0,1,1,0),Position=UDim2.new(1,-1,0,0),BackgroundColor3=C.Line,BorderSizePixel=0,ZIndex=11}, SB)
 
 N("TextLabel",{
     Size = UDim2.new(1,-20,0,22), Position = UDim2.new(0,16,0,16),
@@ -210,11 +185,11 @@ local navs = {
 }
 
 local navStartY = 62
-local navArea = winH - navStartY - 10
+local navArea = (winH - topBarH) - navStartY - 10
 local gap = 3
 local tabH = math.floor((navArea - gap * (#navs - 1)) / #navs)
-tabH = math.clamp(tabH, 22, 34)
-P("06 tabH="..tabH)
+tabH = math.clamp(tabH, 22, 32)
+P("06 tabH="..tabH.." navArea="..navArea)
 
 local nBtns, frames = {}, {}
 
@@ -236,15 +211,15 @@ for i, entry in ipairs(navs) do
     Cnr(bar,1)
 
     local ic = N("TextLabel",{
-        Size = UDim2.new(0,22,1,0), Position = UDim2.new(0,12,0,0),
+        Size = UDim2.new(0,20,1,0), Position = UDim2.new(0,12,0,0),
         BackgroundTransparency = 1, Text = icon, TextColor3 = C.Dim,
-        Font = Enum.Font.GothamBold, TextSize = isMobile and 11 or 12, ZIndex = 13,
+        Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 13,
     }, tab)
 
     local lb = N("TextLabel",{
-        Size = UDim2.new(1,-34,1,0), Position = UDim2.new(0,34,0,0),
+        Size = UDim2.new(1,-34,1,0), Position = UDim2.new(0,32,0,0),
         BackgroundTransparency = 1, Text = name, TextColor3 = C.Dim,
-        Font = Enum.Font.GothamMedium, TextSize = isMobile and 10 or 12,
+        Font = Enum.Font.GothamMedium, TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 13,
     }, tab)
@@ -264,15 +239,15 @@ for i, entry in ipairs(navs) do
     nBtns[name] = {bg = tab, ic = ic, lb = lb, bar = bar}
 
     local cf = N("ScrollingFrame",{
-        Size = UDim2.new(1,-sideW-20,1,-20),
-        Position = UDim2.new(0,sideW+10,0,10),
+        Size = UDim2.new(1,-sideW-18,1,-topBarH-18),
+        Position = UDim2.new(0,sideW+9,0,topBarH+9),
         BackgroundTransparency = 1, BorderSizePixel = 0,
         ScrollBarThickness = 3, ScrollBarImageColor3 = C.Dim,
         CanvasSize = UDim2.new(0,0,0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
         Visible = false, ZIndex = 5,
     }, W)
     N("UIListLayout",{Padding=UDim.new(0,10)}, cf)
-    Pad(cf, 0,10,0,0)
+    Pad(cf, 0,8,0,0)
     frames[name] = cf
 end
 
@@ -356,11 +331,13 @@ local function makeToggle(parent, name, desc, def, cb)
 end
 P("08 toggle fn")
 
+-- HOME
 do
     local f = frames.Home
     f.ScrollBarThickness = 3
 
-    local row1H = isMobile and 140 or 190
+    -- ROW 1: welcome + perf
+    local row1H = isMobile and 150 or 190
     local row1 = N("Frame",{
         Size = UDim2.new(1,0,0,row1H), BackgroundTransparency = 1,
     }, f)
@@ -368,6 +345,7 @@ do
 
     local welcomeW = isMobile and 0.55 or 0.62
 
+    -- welcome
     local wc = N("Frame",{
         Size = UDim2.new(welcomeW,-5,1,0), BackgroundColor3 = C.Card, BorderSizePixel = 0,
     }, row1)
@@ -384,24 +362,25 @@ do
     pcall(function() av.Image = "https://www.roblox.com/headshot-thumbnail/image?userId="..LP.UserId.."&width=150&height=150&format=png" end)
 
     N("TextLabel",{
-        Size = UDim2.new(1,-avSize-36,0,26), Position = UDim2.new(0,avSize+32,0,28),
+        Size = UDim2.new(1,-avSize-40,0,26), Position = UDim2.new(0,avSize+32,0,28),
         BackgroundTransparency=1, Text = "Welcome back, "..LP.DisplayName,
         TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = isMobile and 14 or 18,
         TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
     }, wc)
     N("TextLabel",{
-        Size = UDim2.new(1,-avSize-36,0,16), Position = UDim2.new(0,avSize+32,0,58),
+        Size = UDim2.new(1,-avSize-40,0,16), Position = UDim2.new(0,avSize+32,0,58),
         BackgroundTransparency=1, Text = "@"..LP.Name,
         TextColor3 = C.Dim, Font = Enum.Font.Gotham, TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
     }, wc)
 
+    -- perf card
     local pc = N("Frame",{
         Size = UDim2.new(1-welcomeW,-5,1,0), BackgroundColor3 = C.Card, BorderSizePixel = 0,
     }, row1)
     Cnr(pc,14); Strk(pc,C.Line,1)
     N("TextLabel",{
-        Size = UDim2.new(1,0,0,12), Position = UDim2.new(0,0,0,14),
+        Size = UDim2.new(1,0,0,12), Position = UDim2.new(0,0,0,16),
         BackgroundTransparency=1, Text = "PERFORMANCE",
         TextColor3 = C.Dim, Font = Enum.Font.GothamBold, TextSize = 9,
     }, pc)
@@ -409,15 +388,15 @@ do
     local ringSize = isMobile and 78 or 96
     local ringHolder = N("Frame",{
         Size = UDim2.new(0,ringSize,0,ringSize),
-        Position = UDim2.new(0.5,-ringSize/2,0,isMobile and 32 or 36),
+        Position = UDim2.new(0.5,-ringSize/2,0,isMobile and 34 or 36),
         BackgroundTransparency = 1,
     }, pc)
 
-    local tickCount = 44
+    local tickCount = 40
     local ticks = {}
     for i=1,tickCount do
         local a = (i-1)/tickCount * math.pi * 2 - math.pi/2
-        local r = 0.44
+        local r = 0.46
         local sx = math.cos(a) * r
         local sy = math.sin(a) * r
         local t = N("Frame",{
@@ -432,20 +411,20 @@ do
     end
 
     local fpsVal = N("TextLabel",{
-        Size = UDim2.new(1,0,0,30), Position = UDim2.new(0,0,0.5,-20),
+        Size = UDim2.new(1,0,0,28), Position = UDim2.new(0,0,0.5,-24),
         BackgroundTransparency = 1, Text = "--",
         TextColor3 = C.Text, Font = Enum.Font.GothamBlack,
-        TextSize = isMobile and 22 or 28,
+        TextSize = isMobile and 22 or 26,
     }, ringHolder)
     N("TextLabel",{
-        Size = UDim2.new(1,0,0,10), Position = UDim2.new(0,0,0.5,14),
+        Size = UDim2.new(1,0,0,10), Position = UDim2.new(0,0,0.5,8),
         BackgroundTransparency=1, Text = "frames per second",
         TextColor3 = C.Dim, Font = Enum.Font.Gotham, TextSize = 8,
     }, ringHolder)
 
     local pingPill = N("Frame",{
-        Size = UDim2.new(0,80,0,22),
-        Position = UDim2.new(0.5,-40,1,-32),
+        Size = UDim2.new(0,84,0,22),
+        Position = UDim2.new(0.5,-42,1,-30),
         BackgroundColor3 = C.CardHi, BorderSizePixel = 0,
     }, pc)
     Cnr(pingPill,11)
@@ -487,6 +466,7 @@ do
         end
     end)
 
+    -- ROW 2: server card
     local serverH = isMobile and 110 or 130
     local sc = N("Frame",{
         Size = UDim2.new(1,0,0,serverH), BackgroundColor3 = C.Card, BorderSizePixel = 0,
@@ -574,7 +554,7 @@ do
         end
     end)
 
-    -- Discord banner
+    -- ROW 3: discord banner
     local bannerH = isMobile and 74 or 84
     local bc = N("Frame",{
         Size = UDim2.new(1,0,0,bannerH), BackgroundColor3 = C.Card, BorderSizePixel = 0,
@@ -593,30 +573,41 @@ do
         Font = Enum.Font.GothamBold,
     }, dLogo)
 
-    local dx = isMobile and 66 or 78
+    local dxPos = isMobile and 66 or 78
+    local dxRightPad = isMobile and 130 or 160
+
     N("TextLabel",{
-        Size = UDim2.new(1,-dx-140,0,20), Position = UDim2.new(0,dx,0,14),
+        Size = UDim2.new(1,-dxPos-dxRightPad,0,20), Position = UDim2.new(0,dxPos,0,14),
         BackgroundTransparency=1, Text = "Join the NONO Discord",
         TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = isMobile and 12 or 14,
         TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
     }, bc)
     N("TextLabel",{
-        Size = UDim2.new(1,-dx-140,0,14), Position = UDim2.new(0,dx,0,36),
+        Size = UDim2.new(1,-dxPos-dxRightPad,0,14), Position = UDim2.new(0,dxPos,0,36),
         BackgroundTransparency=1, Text = "updates, new games, bug reports & requests",
         TextColor3 = C.Dim, Font = Enum.Font.Gotham, TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
     }, bc)
     N("TextLabel",{
-        Size = UDim2.new(1,-dx-140,0,12), Position = UDim2.new(0,dx,0,52),
+        Size = UDim2.new(1,-dxPos-dxRightPad,0,12), Position = UDim2.new(0,dxPos,0,52),
         BackgroundTransparency=1, Text = "🟢 2304 online  ·  25085 members",
         TextColor3 = C.Dim, Font = Enum.Font.Gotham, TextSize = 9,
         TextXAlignment = Enum.TextXAlignment.Left,
     }, bc)
 
-    -- FIXED: the two -isMobile bugs
+    -- COPY INVITE BUTTON — carefully constructed, NO boolean arithmetic on -isMobile
+    local ciBtnW = 130
+    if isMobile then ciBtnW = 100 end
+    local ciBtnH = 36
+    if isMobile then ciBtnH = 32 end
+    local ciRightOffset = -146
+    if isMobile then ciRightOffset = -112 end
+    local ciVertOffset = -18
+    if isMobile then ciVertOffset = -16 end
+
     local copyInvBtn = N("TextButton",{
-        Size = UDim2.new(0, isMobile and 100 or 130, 0, isMobile and 32 or 36),
-        Position = UDim2.new(1, isMobile and -112 or -146, 0.5, isMobile and -16 or -18),
+        Size = UDim2.new(0, ciBtnW, 0, ciBtnH),
+        Position = UDim2.new(1, ciRightOffset, 0.5, ciVertOffset),
         BackgroundColor3 = C.White, Text = "Copy invite",
         TextColor3 = C.BG, Font = Enum.Font.GothamBold, TextSize = isMobile and 11 or 12,
         BorderSizePixel = 0, AutoButtonColor = false,
@@ -628,9 +619,21 @@ do
         end)
     end)
 
+    -- ROW 4: quick actions
     local qH = isMobile and 76 or 88
     local qr = N("Frame",{Size = UDim2.new(1,0,0,qH), BackgroundTransparency = 1}, f)
     N("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,10)}, qr)
+
+    local qaIconSize = 30
+    if isMobile then qaIconSize = 26 end
+    local qaIconX = 14
+    local qaIconY = 14
+    local qaTitleX = 52
+    if isMobile then qaTitleX = 46 end
+    local qaTitleY = 18
+    if isMobile then qaTitleY = 16 end
+    local qaTitleRightPad = 56
+    if isMobile then qaTitleRightPad = 52 end
 
     local function qa(title, sub, icon, fn)
         local b = N("TextButton",{
@@ -640,8 +643,8 @@ do
         Cnr(b,12); Strk(b,C.Line,1)
 
         local icnBox = N("Frame",{
-            Size = UDim2.new(0, isMobile and 26 or 30, 0, isMobile and 26 or 30),
-            Position = UDim2.new(0,14,0,14),
+            Size = UDim2.new(0, qaIconSize, 0, qaIconSize),
+            Position = UDim2.new(0, qaIconX, 0, qaIconY),
             BackgroundColor3 = C.CardHi, BorderSizePixel = 0,
         }, b)
         Cnr(icnBox,8)
@@ -652,8 +655,8 @@ do
         }, icnBox)
 
         N("TextLabel",{
-            Size = UDim2.new(1, isMobile and -52 or -56, 0, 18),
-            Position = UDim2.new(0, isMobile and 46 or 52, 0, isMobile and 16 or 18),
+            Size = UDim2.new(1, -qaTitleRightPad, 0, 18),
+            Position = UDim2.new(0, qaTitleX, 0, qaTitleY),
             BackgroundTransparency=1, Text = title, TextColor3 = C.Text,
             Font = Enum.Font.GothamBold, TextSize = isMobile and 11 or 13,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -689,6 +692,7 @@ do
         pcall(function() if setclipboard then setclipboard(tostring(game.JobId)) end end)
     end)
 
+    -- ROW 5: active now
     local acH = 82
     local ac = N("Frame",{Size = UDim2.new(1,0,0,acH), BackgroundColor3 = C.Card, BorderSizePixel = 0}, f)
     Cnr(ac,14); Strk(ac,C.Line,1)
@@ -893,6 +897,7 @@ do local f=frames.Settings
     makeToggle(f,"Auto Rejoin","Reconnect on kick",false,function(o) _G.autoRejoin=o end)
 end
 
+-- AI
 do
     local f = frames.AI
     local wrap = N("Frame",{Size=UDim2.new(1,0,0,isMobile and 380 or 480),BackgroundColor3=C.Card,BorderSizePixel=0}, f)
@@ -995,11 +1000,14 @@ do
     task.defer(function() add("Yo chief. Try `enable esp` or `help`.", false) end)
 end
 
+-- THEME PANEL
 local themeW = isMobile and 260 or 280
 local themeH = math.min(winH, isMobile and 420 or 540)
+local themeRightX = winW/2 + 16
+if isMobile then themeRightX = -themeW/2 end
 local themePanel = N("Frame",{
     Size = UDim2.new(0,themeW,0,themeH),
-    Position = UDim2.new(.5, isMobile and -themeW/2 or winW/2+16, .5, -themeH/2),
+    Position = UDim2.new(.5, themeRightX, .5, -themeH/2),
     BackgroundColor3 = C.Side, BorderSizePixel = 0,
     Visible = false, Active = true, ZIndex = 300,
 }, gui)
@@ -1081,12 +1089,12 @@ local function surfaceRow(name, hex)
     local r = N("Frame",{Size=UDim2.new(1,0,0,28),BackgroundColor3=C.CardHi,BorderSizePixel=0}, tScroll)
     Cnr(r,6)
     N("TextLabel",{Size=UDim2.new(1,-70,1,0),Position=UDim2.new(0,12,0,0),BackgroundTransparency=1,Text=name,TextColor3=C.Text,Font=Enum.Font.Gotham,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left}, r)
-    N("TextLabel",{Size=UDim2.new(0,60,1,0),Position=UDim2.new(1,-66,0,0),BackgroundTransparency=1,Text=hex,TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Right},Hi r)
+    N("TextLabel",{Size=UDim2.new(0,60,1,0),Position=UDim2.new(1,-66,0,0),BackgroundTransparency=1,Text=hex,TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Right}, r)
 end
-surfaceRow("Window", =  "#0B0B0E Color")
-surfaceRow("Sidebar", "#0F0F123")
-surfaceRow("Cards",   "#18181.fromC")
-surfaceRow("RowsRGB",    "#202026")
+surfaceRow("Window",  "#0B0B0E")
+surfaceRow("Sidebar", "#0F0F12")
+surfaceRow("Cards",   "#18181C")
+surfaceRow("Rows",    "#202026")
 
 local resetBtn = N("TextButton",{
     Size = UDim2.new(1,0,0,32), BackgroundColor3 = C.Text,
@@ -1099,7 +1107,7 @@ resetBtn.MouseButton1Click:Connect(function()
     C.BG = Color3.fromRGB(11,11,14)
     C.Side = Color3.fromRGB(15,15,18)
     C.Card = Color3.fromRGB(24,24,28)
-    C.Card(32,32,38)
+    C.CardHi = Color3.fromRGB(32,32,38)
     C.Line = Color3.fromRGB(40,40,48)
     for _, d in ipairs(gui:GetDescendants()) do
         pcall(function()
@@ -1115,11 +1123,14 @@ resetBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- SETTINGS PANEL
 local setW = isMobile and 260 or 280
 local setH = math.min(winH, isMobile and 400 or 440)
+local setLeftX = -winW/2 - setW - 16
+if isMobile then setLeftX = -setW/2 end
 local settingsPanel = N("Frame",{
     Size = UDim2.new(0,setW,0,setH),
-    Position = UDim2.new(.5, isMobile and -setW/2 or -winW/2-setW-16, .5, -setH/2),
+    Position = UDim2.new(.5, setLeftX, .5, -setH/2),
     BackgroundColor3 = C.Side, BorderSizePixel = 0,
     Visible = false, Active = true, ZIndex = 300,
 }, gui)
@@ -1183,13 +1194,13 @@ local function slider(label, min, max, def, onCh)
 end
 
 slider("UI Size", 0.6, 1.4, 1.0, function(v)
-    local nw, nh = baseW * v, baseH * v
+    local nw = baseW * v
+    local nh = baseH * v
     W.Size = UDim2.new(0, nw, 0, nh)
-    W.Position = UDim2.new(.5, -nw/2, .5, -nh/2 + topStripH/2 + topGap/2)
+    W.Position = UDim2.new(.5, -nw/2, .5, -nh/2)
 end)
 slider("Opacity", 0.5, 1.0, 1.0, function(v)
     W.BackgroundTransparency = 1 - v
-    TopStrip.BackgroundTransparency = 1 - v
 end)
 
 themeBtn.MouseButton1Click:Connect(function()
