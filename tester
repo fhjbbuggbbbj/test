@@ -1,4 +1,4 @@
--- NONO ARC v22 - floating topbar, taller perf, ARC banner, polish
+-- NONO ARC v23 - boolean arithmetic fixes
 local function P(m) print("[NONO] "..m) end
 P("01 boot")
 
@@ -55,7 +55,6 @@ P("03 "..winW.."x"..winH)
 local gui = N("ScreenGui",{Name="NonoARC", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling}, CG)
 if not gui then P("FAIL gui") return end
 
--- SHADOW
 local shadow = N("ImageLabel",{
     Size = UDim2.new(0,0,0,0), Position = UDim2.new(0,0,0,0),
     BackgroundTransparency = 1,
@@ -63,7 +62,6 @@ local shadow = N("ImageLabel",{
     ImageColor3 = Color3.new(0,0,0), ImageTransparency = 0.5, ZIndex = 1,
 }, gui)
 
--- MAIN WINDOW (below top strip)
 local W = N("Frame",{
     Size = UDim2.new(0,winW,0,winH),
     Position = UDim2.new(.5,-winW/2,.5,-winH/2 + topStripH/2 + topGap/2),
@@ -73,7 +71,6 @@ local W = N("Frame",{
 Cnr(W, 16)
 Strk(W, C.Line, 1)
 
--- TOP STRIP (floating above window)
 local TopStrip = N("Frame",{
     Size = UDim2.new(0,winW,0,topStripH),
     Position = UDim2.new(.5,-winW/2,0,0),
@@ -83,24 +80,23 @@ local TopStrip = N("Frame",{
 Cnr(TopStrip, 14)
 Strk(TopStrip, C.Line, 1)
 
--- sync strip above window + shadow behind window
 RS.Heartbeat:Connect(function()
     if shadow and W and TopStrip then
-        -- strip sits above window
-        TopStrip.Position = UDim2.new(W.Position.X.Scale, W.Position.X.Offset, W.Position.Y.Scale, W.Position.Y.Offset - topStripH - topGap)
-        TopStrip.Size = UDim2.new(W.Size.X.Scale, W.Size.X.Offset, 0, topStripH)
-        -- shadow behind window
-        shadow.Position = UDim2.new(W.Position.X.Scale, W.Position.X.Offset - 14, W.Position.Y.Scale, W.Position.Y.Offset - 14)
-        shadow.Size = UDim2.new(W.Size.X.Scale, W.Size.X.Offset + 28, W.Size.Y.Scale, W.Size.Y.Offset + 28)
+        pcall(function()
+            TopStrip.Position = UDim2.new(W.Position.X.Scale, W.Position.X.Offset, W.Position.Y.Scale, W.Position.Y.Offset - topStripH - topGap)
+            TopStrip.Size = UDim2.new(W.Size.X.Scale, W.Size.X.Offset, 0, topStripH)
+            shadow.Position = UDim2.new(W.Position.X.Scale, W.Position.X.Offset - 14, W.Position.Y.Scale, W.Position.Y.Offset - 14)
+            shadow.Size = UDim2.new(W.Size.X.Scale, W.Size.X.Offset + 28, W.Size.Y.Scale, W.Size.Y.Offset + 28)
+        end)
     end
 end)
 
--- drag on top strip moves both
+-- drag top strip
 do
-    local drag, ds, spW, spS = false, nil, nil, nil
+    local drag, ds, spW = false, nil, nil
     TopStrip.InputBegan:Connect(function(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-            drag=true; ds=i.Position; spW=W.Position; spS=TopStrip.Position
+            drag=true; ds=i.Position; spW=W.Position
         end
     end)
     UIS.InputChanged:Connect(function(i)
@@ -113,7 +109,6 @@ do
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end
     end)
 end
--- drag on window too
 do
     local drag, ds, spW = false, nil, nil
     W.InputBegan:Connect(function(i)
@@ -133,7 +128,6 @@ do
 end
 P("04 window+strip")
 
--- TOP STRIP CONTENT
 N("TextLabel",{
     Size = UDim2.new(0,120,1,0), Position = UDim2.new(0,16,0,0),
     BackgroundTransparency=1, Text = "Home",
@@ -186,7 +180,6 @@ local settingsBtn = N("TextButton",{
 Cnr(settingsBtn, 8); Strk(settingsBtn, C.Line, 1)
 P("05 top content")
 
--- SIDEBAR
 local SB = N("Frame",{
     Size = UDim2.new(0,sideW,1,0), Position = UDim2.new(0,0,0,0),
     BackgroundColor3 = C.Side, BorderSizePixel = 0, ZIndex = 10,
@@ -291,7 +284,6 @@ nBtns.Home.bar.Visible = true
 frames.Home.Visible = true
 P("07 nav built")
 
--- TOGGLE
 local function makeToggle(parent, name, desc, def, cb)
     local row = N("Frame",{
         Size = UDim2.new(1,0,0,56), BackgroundColor3 = C.Card, BorderSizePixel = 0,
@@ -364,12 +356,10 @@ local function makeToggle(parent, name, desc, def, cb)
 end
 P("08 toggle fn")
 
--- HOME — 2-column + ARC banner
 do
     local f = frames.Home
     f.ScrollBarThickness = 3
 
-    -- ROW 1: welcome + perf
     local row1H = isMobile and 140 or 190
     local row1 = N("Frame",{
         Size = UDim2.new(1,0,0,row1H), BackgroundTransparency = 1,
@@ -378,7 +368,6 @@ do
 
     local welcomeW = isMobile and 0.55 or 0.62
 
-    -- WELCOME
     local wc = N("Frame",{
         Size = UDim2.new(welcomeW,-5,1,0), BackgroundColor3 = C.Card, BorderSizePixel = 0,
     }, row1)
@@ -407,7 +396,6 @@ do
         TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
     }, wc)
 
-    -- PERF (taller, room for ring + ping pill)
     local pc = N("Frame",{
         Size = UDim2.new(1-welcomeW,-5,1,0), BackgroundColor3 = C.Card, BorderSizePixel = 0,
     }, row1)
@@ -455,7 +443,6 @@ do
         TextColor3 = C.Dim, Font = Enum.Font.Gotham, TextSize = 8,
     }, ringHolder)
 
-    -- ping pill below gauge
     local pingPill = N("Frame",{
         Size = UDim2.new(0,80,0,22),
         Position = UDim2.new(0.5,-40,1,-32),
@@ -500,7 +487,6 @@ do
         end
     end)
 
-    -- ROW 2: server card with 80x80 thumbnail
     local serverH = isMobile and 110 or 130
     local sc = N("Frame",{
         Size = UDim2.new(1,0,0,serverH), BackgroundColor3 = C.Card, BorderSizePixel = 0,
@@ -556,7 +542,6 @@ do
     local pingChip = makeChip("📡", "--")
     local timeChip = makeChip("⏱", "00:00")
 
-    -- shortened Job ID
     local jobStr = tostring(game.JobId)
     local jobShort = jobStr:sub(1,4).."..."..jobStr:sub(-4)
     N("TextLabel",{
@@ -589,7 +574,7 @@ do
         end
     end)
 
-    -- ROW 3: Discord banner (ARC signature card)
+    -- Discord banner
     local bannerH = isMobile and 74 or 84
     local bc = N("Frame",{
         Size = UDim2.new(1,0,0,bannerH), BackgroundColor3 = C.Card, BorderSizePixel = 0,
@@ -628,9 +613,10 @@ do
         TextXAlignment = Enum.TextXAlignment.Left,
     }, bc)
 
+    -- FIXED: the two -isMobile bugs
     local copyInvBtn = N("TextButton",{
-        Size = UDim2.new(0,isMobile and 100 or 130,0,isMobile and 32 or 36),
-        Position = UDim2.new(1,-isMobile and 112 or -146,0.5,-isMobile and 16 or -18),
+        Size = UDim2.new(0, isMobile and 100 or 130, 0, isMobile and 32 or 36),
+        Position = UDim2.new(1, isMobile and -112 or -146, 0.5, isMobile and -16 or -18),
         BackgroundColor3 = C.White, Text = "Copy invite",
         TextColor3 = C.BG, Font = Enum.Font.GothamBold, TextSize = isMobile and 11 or 12,
         BorderSizePixel = 0, AutoButtonColor = false,
@@ -642,7 +628,6 @@ do
         end)
     end)
 
-    -- ROW 4: quick actions
     local qH = isMobile and 76 or 88
     local qr = N("Frame",{Size = UDim2.new(1,0,0,qH), BackgroundTransparency = 1}, f)
     N("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,10)}, qr)
@@ -667,8 +652,8 @@ do
         }, icnBox)
 
         N("TextLabel",{
-            Size = UDim2.new(1,-isMobile and 52 or 56,0,18),
-            Position = UDim2.new(0,isMobile and 46 or 52,0,isMobile and 16 or 18),
+            Size = UDim2.new(1, isMobile and -52 or -56, 0, 18),
+            Position = UDim2.new(0, isMobile and 46 or 52, 0, isMobile and 16 or 18),
             BackgroundTransparency=1, Text = title, TextColor3 = C.Text,
             Font = Enum.Font.GothamBold, TextSize = isMobile and 11 or 13,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -704,7 +689,6 @@ do
         pcall(function() if setclipboard then setclipboard(tostring(game.JobId)) end end)
     end)
 
-    -- ROW 5: active now pills
     local acH = 82
     local ac = N("Frame",{Size = UDim2.new(1,0,0,acH), BackgroundColor3 = C.Card, BorderSizePixel = 0}, f)
     Cnr(ac,14); Strk(ac,C.Line,1)
@@ -909,7 +893,6 @@ do local f=frames.Settings
     makeToggle(f,"Auto Rejoin","Reconnect on kick",false,function(o) _G.autoRejoin=o end)
 end
 
--- AI
 do
     local f = frames.AI
     local wrap = N("Frame",{Size=UDim2.new(1,0,0,isMobile and 380 or 480),BackgroundColor3=C.Card,BorderSizePixel=0}, f)
@@ -1012,7 +995,6 @@ do
     task.defer(function() add("Yo chief. Try `enable esp` or `help`.", false) end)
 end
 
--- THEME PANEL
 local themeW = isMobile and 260 or 280
 local themeH = math.min(winH, isMobile and 420 or 540)
 local themePanel = N("Frame",{
@@ -1099,12 +1081,12 @@ local function surfaceRow(name, hex)
     local r = N("Frame",{Size=UDim2.new(1,0,0,28),BackgroundColor3=C.CardHi,BorderSizePixel=0}, tScroll)
     Cnr(r,6)
     N("TextLabel",{Size=UDim2.new(1,-70,1,0),Position=UDim2.new(0,12,0,0),BackgroundTransparency=1,Text=name,TextColor3=C.Text,Font=Enum.Font.Gotham,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left}, r)
-    N("TextLabel",{Size=UDim2.new(0,60,1,0),Position=UDim2.new(1,-66,0,0),BackgroundTransparency=1,Text=hex,TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Right}, r)
+    N("TextLabel",{Size=UDim2.new(0,60,1,0),Position=UDim2.new(1,-66,0,0),BackgroundTransparency=1,Text=hex,TextColor3=C.Dim,Font=Enum.Font.Gotham,TextSize=10,TextXAlignment=Enum.TextXAlignment.Right},Hi r)
 end
-surfaceRow("Window",  "#0B0B0E")
-surfaceRow("Sidebar", "#0F0F12")
-surfaceRow("Cards",   "#18181C")
-surfaceRow("Rows",    "#202026")
+surfaceRow("Window", =  "#0B0B0E Color")
+surfaceRow("Sidebar", "#0F0F123")
+surfaceRow("Cards",   "#18181.fromC")
+surfaceRow("RowsRGB",    "#202026")
 
 local resetBtn = N("TextButton",{
     Size = UDim2.new(1,0,0,32), BackgroundColor3 = C.Text,
@@ -1117,7 +1099,7 @@ resetBtn.MouseButton1Click:Connect(function()
     C.BG = Color3.fromRGB(11,11,14)
     C.Side = Color3.fromRGB(15,15,18)
     C.Card = Color3.fromRGB(24,24,28)
-    C.CardHi = Color3.fromRGB(32,32,38)
+    C.Card(32,32,38)
     C.Line = Color3.fromRGB(40,40,48)
     for _, d in ipairs(gui:GetDescendants()) do
         pcall(function()
@@ -1133,7 +1115,6 @@ resetBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- SETTINGS PANEL
 local setW = isMobile and 260 or 280
 local setH = math.min(winH, isMobile and 400 or 440)
 local settingsPanel = N("Frame",{
@@ -1225,7 +1206,6 @@ UIS.InputBegan:Connect(function(i,g)
     if i.KeyCode == Enum.KeyCode.End then gui.Enabled = not gui.Enabled end
 end)
 
--- gameplay loops
 RS.Heartbeat:Connect(function()
     if _G.infJump and LP.Character then
         local h = LP.Character:FindFirstChildOfClass("Humanoid")
